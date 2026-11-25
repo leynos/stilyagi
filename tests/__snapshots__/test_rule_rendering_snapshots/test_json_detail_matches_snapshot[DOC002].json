@@ -74,6 +74,7 @@
           "python_docstring",
           "rust_doc_comment"
         ],
+        "owner_kinds": [],
         "scope_has": [],
         "syntax": "python,rust"
       }

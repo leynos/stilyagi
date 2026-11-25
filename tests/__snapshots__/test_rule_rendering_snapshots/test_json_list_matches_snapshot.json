@@ -81,6 +81,11 @@
           "kinds": [
             "python_docstring"
           ],
+          "owner_kinds": [
+            "class",
+            "function",
+            "module"
+          ],
           "scope_has": [],
           "syntax": "python"
         }
@@ -161,6 +166,7 @@
             "python_docstring",
             "rust_doc_comment"
           ],
+          "owner_kinds": [],
           "scope_has": [],
           "syntax": "python,rust"
         }
@@ -241,6 +247,18 @@
             "python_docstring",
             "rust_doc_comment"
           ],
+          "owner_kinds": [
+            "class",
+            "const",
+            "enum",
+            "function",
+            "macro",
+            "static",
+            "struct",
+            "trait",
+            "type",
+            "union"
+          ],
           "scope_has": [],
           "syntax": "python,rust"
         }
@@ -300,6 +318,7 @@
           "kinds": [
             "heading"
           ],
+          "owner_kinds": [],
           "scope_has": [],
           "syntax": "markdown"
         }
@@ -371,6 +390,7 @@
             "paragraph",
             "table_cell"
           ],
+          "owner_kinds": [],
           "scope_has": [],
           "syntax": "markdown"
         }
@@ -501,6 +521,7 @@
             "paragraph",
             "table_cell"
           ],
+          "owner_kinds": [],
           "scope_has": [],
           "syntax": "markdown"
         }

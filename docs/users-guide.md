@@ -64,7 +64,7 @@ owns a long-lived architectural role:
   assert document.regions[0].kind == "heading"
   assert document.regions[0].text == "Heading"
   assert document.ir is not None
-  assert document.ir["schema_version"] == "1.0.0"
+  assert document.ir["schema_version"] == "1.1.0"
   ```
 
   Query the current IR region-kind vocabulary before writing code that branches
@@ -208,6 +208,14 @@ stream, and error reporter — without constructing a command line:
 
 <!-- tested-example: run-check-collaborators -->
 ```python
+from stilyagi import cli
+
+
+def my_rules(_request):
+    """Run no rules; a stand-in for a project's own runner."""
+    return []
+
+
 exit_code = cli.run_check(
     cli.CheckOptions(targets=("docs",)),
     collaborators=cli.CheckCollaborators(rule_runner=my_rules),
@@ -1038,11 +1046,14 @@ for a list and `{"schema_version": 1, "rule": {...}}` for a detail. Each
 descriptor carries `code`, `name`, `pack`, `summary`, `explanation`,
 `default_severity`, `targets`, `requires`, `requires_nlp`, `fixable`,
 `fix_mode`, `fixes`, `enabled_by_default`, `preview`, `configuration`,
-`examples`, `limitations`, and `references`. Each example carries `title`,
-`source`, `configuration`, `expected_codes`, and the documented `exit_code`,
-which is always the integer `0` or `1`. Empty collections are arrays; booleans
-are JSON booleans. Errors always use standard error as text, so a consumer can
-treat standard output as the machine-readable result alone.
+`examples`, `limitations`, and `references`. Each target carries `syntax`,
+`kinds`, `scope_has`, and `owner_kinds`; an empty `owner_kinds` places no
+requirement on the region's owner, including a region that records none. Each
+example carries `title`, `source`, `configuration`, `expected_codes`, and the
+documented `exit_code`, which is always the integer `0` or `1`. Empty
+collections are arrays; booleans are JSON booleans. Errors always use standard
+error as text, so a consumer can treat standard output as the machine-readable
+result alone.
 
 Fixability describes a capability, not a guarantee. `STY001` can propose an
 unsafe edit, which `--fix` applies only with `--unsafe-fixes`; `MD001` reports

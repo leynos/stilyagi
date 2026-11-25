@@ -127,8 +127,10 @@ def _target_descriptor(target: RegionTarget) -> dict[str, object]:
 
     The schema-version-1 `syntax` key stays a single string for consumers that
     already parse it, and repeats the target's declared syntaxes joined by a
-    comma when a rule reads more than one language. `kinds` and `scope_has`
-    remain sorted arrays so their order is stable.
+    comma when a rule reads more than one language. `kinds`, `scope_has`, and
+    `owner_kinds` are sorted arrays so their order is stable. An empty
+    `owner_kinds` array places no requirement on the region's owner, which
+    includes a region that records none.
 
     Returns
     -------
@@ -139,6 +141,7 @@ def _target_descriptor(target: RegionTarget) -> dict[str, object]:
         "syntax": ",".join(target.syntaxes),
         "kinds": sorted(target.kinds),
         "scope_has": sorted(target.scope_has),
+        "owner_kinds": sorted(target.owner_kinds),
     }
 
 

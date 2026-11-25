@@ -11,10 +11,11 @@ reversed its sort order must be caught, so the oracle is not merely restating
 the implementation.
 """
 
+import dataclasses as dc
 import typing as typ
 
 import pytest
-from hypothesis import event, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from stilyagi.rules import catalogue
 from stilyagi.rules.base import RegionTarget, RuleMetadata
@@ -143,8 +144,6 @@ def test_query_matches_the_independent_oracle(
     """The query selects exactly the oracle's codes, in ascending order."""
     selected = catalogue._select_rules(registry, filters)
 
-    event("empty registry" if not registry else "non-empty registry")
-    event("empty selection" if not selected else "matching selection")
     assert tuple(rule.code for rule in selected) == _oracle(registry, filters), (
         "expected the query to agree with the independent selection oracle"
     )
@@ -285,21 +284,48 @@ def _synthetic(code: str) -> RuleMetadata:
 
 
 @settings(max_examples=150, deadline=None)
-@given(registry=_registries, filters=_filters)
-def test_generated_cases_cover_matching_and_nonmatching_classes(
+@given(registry=_nonempty_registries, position=st.integers(min_value=0))
+def test_a_derived_filter_selects_its_descriptor_and_each_mismatch_excludes_it(
     registry: tuple[RuleMetadata, ...],
-    filters: RuleFilters,
+    position: int,
 ) -> None:
-    """Classify every generated case and require both outcomes to be reachable.
+    """A filter built from one descriptor selects it and rejects each mismatch.
 
-    Hypothesis fails the run when a class the test declares is never produced,
-    so this turns "the generator can exercise a match and a miss" into an
-    assertion rather than a hope about the corpus.
+    Every dimension is derived from the same descriptor, so the match cannot
+    depend on a lucky generated filter. Each mismatch changes exactly one
+    dimension, so a query that ignored that dimension would keep the rule and
+    fail here. `event` statistics alone would not fail the run, which is why
+    the outcomes are asserted rather than recorded.
     """
-    selected = catalogue._select_rules(registry, filters)
+    rule = registry[position % len(registry)]
+    matching = RuleFilters(
+        prefix=rule.code,
+        pack=rule.pack,
+        severity=rule.default_severity,
+        preview=rule.description.preview,
+        fixable=rule.description.fixable,
+    )
 
-    event("empty registry" if not registry else "non-empty registry")
-    event("empty selection" if not selected else "matching selection")
+    selected = {item.code for item in catalogue._select_rules(registry, matching)}
+    assert rule.code in selected, (
+        "expected a filter derived from the descriptor to select it"
+    )
+
+    mismatches = (
+        dc.replace(matching, prefix=_absent_prefix(registry)),
+        dc.replace(matching, pack=f"not-{rule.pack}"),
+        dc.replace(
+            matching,
+            severity=next(
+                value for value in _SEVERITIES if value != rule.default_severity
+            ),
+        ),
+        dc.replace(matching, preview=not rule.description.preview),
+        dc.replace(matching, fixable=not rule.description.fixable),
+    )
+    for missed in mismatches:
+        excluded = {item.code for item in catalogue._select_rules(registry, missed)}
+        assert rule.code not in excluded, f"expected {missed} to exclude {rule.code}"
 
 
 @settings(max_examples=150, deadline=None)

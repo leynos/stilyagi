@@ -366,3 +366,29 @@ def test_discovery_commands_leave_the_directory_unchanged(
     assert _tree_snapshot(tmp_path) == before, (
         "expected rule discovery to write no file"
     )
+
+
+def test_import_probe_detects_a_rename_into_the_project(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A move whose destination is inside the project is recorded.
+
+    The audit event reports the source and the destination, and only the
+    destination changes the project. Checking the source alone would accept a
+    staging file moved in from a sibling directory.
+    """
+    _malformed_project(tmp_path)
+    staging = tmp_path.parent / f"{tmp_path.name}-staging"
+    staging.mkdir()
+    (staging / "moved.md").write_text("# Moved\n", encoding="utf-8")
+    after = f"import os\nos.rename({str(staging / 'moved.md')!r}, 'moved.md')\n"
+
+    completed = _run_import_probe(tmp_path, after_cli=after)
+
+    assert completed.returncode != 0, "expected the probe to reject the move in"
+    assert b"import side effects" in completed.stderr, (
+        "expected the probe's failure report"
+    )
+    assert str(tmp_path / "moved.md").encode() in completed.stderr, (
+        "expected the report to name the destination path"
+    )

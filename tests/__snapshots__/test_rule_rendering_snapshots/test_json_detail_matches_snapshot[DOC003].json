@@ -74,6 +74,18 @@
           "python_docstring",
           "rust_doc_comment"
         ],
+        "owner_kinds": [
+          "class",
+          "const",
+          "enum",
+          "function",
+          "macro",
+          "static",
+          "struct",
+          "trait",
+          "type",
+          "union"
+        ],
         "scope_has": [],
         "syntax": "python,rust"
       }

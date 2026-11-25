@@ -147,6 +147,12 @@ def _unexpected_check(*_args: object, **_kwargs: object) -> typ.NoReturn:
             id="duplicate-marker",
         ),
         pytest.param("```text\nx\n```\n", "unmarked fence", id="unmarked-fence"),
+        pytest.param("~~~text\nx\n~~~\n", "unmarked fence", id="unmarked-tilde-fence"),
+        pytest.param(
+            "<!-- tested-example: a -->\n````markdown\nx\n",
+            "no closing fence",
+            id="unclosed-long-fence",
+        ),
     ],
 )
 def test_the_loader_rejects_a_malformed_document(
@@ -200,4 +206,21 @@ def test_an_indented_marker_and_fence_are_dedented(tmp_path: pathlib.Path) -> No
 
     assert examples["indented"].lines == ("value = 1",), (
         "expected the list indentation to be removed from the block"
+    )
+
+
+def test_a_longer_fence_keeps_a_shorter_fence_of_either_character(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A block opened by four backticks ends only at four or more backticks."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "<!-- tested-example: long -->\n````markdown\n```python\n~~~\n````\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["long"].lines == ("```python", "~~~"), (
+        "expected shorter fences of either character to stay in the block"
     )

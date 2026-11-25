@@ -2397,11 +2397,13 @@ and behaviour-driven scenarios.
 `load_tested_examples` reads a Markdown file, returns each marked block by
 identifier with its fence language and lines. It rejects a fence with no
 preceding marker, a marker that names no block, a marker that immediately
-follows another, a duplicate identifier, and an unterminated fence. Only a line
-that is backticks and permitted whitespace closes a block, so a nested
-language-tagged fence stays content, and reaching the end of the file without a
-closing fence fails rather than returning truncated text. A block indented
-inside a list item is dedented by its fence's indentation.
+follows another, a duplicate identifier, and an unterminated fence. A fence may
+use three or more backticks or tildes, as CommonMark allows. Only a line that
+repeats the opening character at least as many times, with nothing else on it,
+closes a block, so a nested language-tagged fence or a shorter fence of the
+other character stays content. Reaching the end of the file without a closing
+fence fails rather than returning truncated text. A block indented inside a
+list item is dedented by its fence's indentation.
 `tests/test_rule_commands_documented_examples.py` uses it: every
 `stilyagi rules` and `stilyagi rule` transcript in the user's guide is parsed
 by the real argument parser, and the published unknown-code transcript is
@@ -2410,10 +2412,20 @@ examples added by roadmap 2.3.2 are therefore executed from the published
 document rather than from a copy.
 
 Every fence in `docs/users-guide.md` carries a marker, so adding an unmarked
-example there fails test collection rather than passing unexercised. The loader
-covers the documents that call it. A user-facing fence in another document
-still needs a marker and a test that loads it before its coverage is real, and
-`make test-doc` does not check Markdown fences.
+example there fails test collection rather than passing unexercised.
+`tests/test_users_guide_examples.py` consumes every marker the loader returns,
+dispatching on the fence language: Python blocks run in a fresh interpreter,
+TOML and JSON blocks are parsed, Markdown blocks go through the extractor,
+shell lines are parsed by the real argument parser, and a recorded log line
+must start with the record the tool emits. An example whose language has no
+check fails, so a marked block cannot ship unread. Because the Python blocks
+execute, they catch drift in the API they demonstrate: the IR schema-version
+assertion in the guide had gone stale and was corrected when this coverage was
+added.
+
+The loader covers the documents that call it. A user-facing fence in another
+document still needs a marker and a test that loads it before its coverage is
+real, and `make test-doc` does not check Markdown fences.
 
 Rust documentation examples should run as doctests whenever they can execute.
 Use `no_run` only for examples that genuinely cannot execute, such as snippets

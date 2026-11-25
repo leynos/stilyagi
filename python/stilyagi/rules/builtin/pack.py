@@ -77,10 +77,15 @@ _DOC002_TARGET = RegionTarget(
     kinds=("python_docstring", "rust_doc_comment"),
     syntaxes=("python", "rust"),
 )
+#: Both language lists name ``function``; a target is a set, so the published
+#: constraint lists it once, in the order the two lists declare it.
+_DOC003_OWNER_KINDS: tuple[str, ...] = tuple(
+    dict.fromkeys(_PYTHON_NAMED_OWNERS + _RUST_NAMED_OWNERS)
+)
 _DOC003_TARGET = RegionTarget(
     kinds=("python_docstring", "rust_doc_comment"),
     syntaxes=("python", "rust"),
-    owner_kinds=_PYTHON_NAMED_OWNERS + _RUST_NAMED_OWNERS,
+    owner_kinds=_DOC003_OWNER_KINDS,
 )
 
 

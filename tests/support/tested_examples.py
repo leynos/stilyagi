@@ -26,9 +26,11 @@ USERS_GUIDE: typ.Final[pathlib.Path] = REPOSITORY_ROOT / "docs" / "users-guide.m
 
 #: A marker and its fence may be indented, as they are inside a list item.
 _MARKER = re.compile(r"^[ \t]*<!-- tested-example: (?P<name>[A-Za-z0-9_-]+) -->[ \t]*$")
-_FENCE = re.compile(r"^(?P<indent>[ \t]*)```(?P<language>[A-Za-z0-9_-]*)[ \t]*$")
-#: A closing fence is backticks alone, optionally surrounded by whitespace.
-_CLOSING_FENCE = re.compile(r"^[ \t]*```[ \t]*$")
+#: CommonMark opens a block with three or more backticks or tildes.
+_FENCE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<language>[A-Za-z0-9_-]*)[ \t]*$"
+)
+_CLOSING_FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})[ \t]*$")
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -173,10 +175,12 @@ def _read_block(
 ) -> tuple[MarkedExample, int]:
     """Read the marked block whose opening fence is at ``index``.
 
-    Only a line that is entirely a closing fence ends the block, so a nested
-    language-tagged fence such as a fenced block inside a shell transcript
-    stays part of the content. Content is dedented by the opening fence's own
-    indentation, which is how Markdown treats a block inside a list item.
+    Only a line that repeats the opening fence character at least as many
+    times, with nothing else on it, ends the block. That keeps both a nested
+    language-tagged fence and a shorter fence of the other character inside
+    the content, as CommonMark does. Content is dedented by the opening
+    fence's own indentation, which is how Markdown treats a block inside a
+    list item.
 
     Returns
     -------
@@ -189,9 +193,10 @@ def _read_block(
         The opening fence is never closed.
     """
     indent = len(fence.group("indent"))
+    opener = fence.group("fence")
     body: list[str] = []
     cursor = index + 1
-    while cursor < len(lines) and not _CLOSING_FENCE.match(lines[cursor]):
+    while cursor < len(lines) and not _closes(lines[cursor], opener):
         body.append(_strip_indent(lines[cursor], indent))
         cursor += 1
     if cursor == len(lines):
@@ -203,6 +208,15 @@ def _read_block(
         lines=tuple(body),
     )
     return example, cursor + 1
+
+
+def _closes(line: str, opener: str) -> bool:
+    """Return whether ``line`` closes a block opened by ``opener``."""
+    closing = _CLOSING_FENCE.match(line)
+    if closing is None:
+        return False
+    fence = closing.group("fence")
+    return fence[0] == opener[0] and len(fence) >= len(opener)
 
 
 def _strip_indent(line: str, width: int) -> str:

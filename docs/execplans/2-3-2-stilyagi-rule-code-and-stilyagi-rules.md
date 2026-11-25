@@ -4,8 +4,10 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass on the final candidate
-(2026-11-25).
+default `make test` acceptance record (E6) all pass on the code candidate
+`57b162e7` (2026-11-25). Later commits on the branch touch only this plan; each
+one is gated on its own tree, and E6 is re-recorded for any commit that changes
+code or a document the test suite reads.
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking
@@ -303,6 +305,29 @@ before continuing.
   `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review3c.out`. Hosted
   `lint-test` and CodeScene pass at that head; the three `release-smoke` jobs
   are queued.
+- [x] (2026-11-25) A local `coderabbit review --agent` pass raised seven
+  findings, all verified against the tree and repaired. The loader now accepts
+  CommonMark's tilde fences and fences longer than three characters, matching a
+  closer by character and length. Both renderers publish a target's
+  `owner_kinds` (an empty tuple means unrestricted), and `DOC003`'s duplicated
+  `function` was removed from its declared owner kinds. The fresh-import probe
+  checks both endpoints of a rename, with a control that moves a staging file
+  into the project. The event-only property test became an assertion-bearing
+  property, because Hypothesis's `event()` does not fail a run. The guide's
+  collaborator example is self-contained, and the stale IR schema-version
+  assertion it contained was corrected. A new
+  `tests/test_users_guide_examples.py` consumes every marker: Python blocks run
+  in a fresh interpreter, TOML and JSON parse, Markdown extracts, shell lines
+  parse through the real parser, and a recorded log line must start with the
+  record the tool emits. All seven changed Python files score 10.0 under
+  `cs review`.
+- [x] (2026-11-26) Gates on the repair tree up to the local test run:
+  `make check-fmt`, `make markdownlint` (including spelling), `make nixie`,
+  `make typecheck`, and `make lint` (exit 0) pass. `make test` reaches 2 110
+  passed with four failures, all in `tests/test_lint_policy_behaviour.py` and
+  all reported as `timed out after 240 s` while the shared admission queue held
+  300–400 requests; that file is untouched from `origin/main`. A retry in a
+  shallower window is recorded once it completes.
 
 ## Surprises & discoveries
 

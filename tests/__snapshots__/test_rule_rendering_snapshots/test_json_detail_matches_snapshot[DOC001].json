@@ -80,6 +80,11 @@
         "kinds": [
           "python_docstring"
         ],
+        "owner_kinds": [
+          "class",
+          "function",
+          "module"
+        ],
         "scope_has": [],
         "syntax": "python"
       }

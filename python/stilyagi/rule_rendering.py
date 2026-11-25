@@ -194,12 +194,25 @@ def _append_section(
 
 
 def _target_lines(target: RegionTarget) -> list[str]:
-    """Render one target's syntaxes, kinds, and required scope tags."""
+    """Render one target's syntaxes, kinds, scope tags, and owner kinds.
+
+    Owner kinds are part of the promise: DOC003 refuses a Python module
+    docstring, so a target rendered without them would describe a broader
+    rule than the one that runs. An empty tuple is rendered as
+    ``unrestricted`` rather than as an absent section.
+
+    Returns
+    -------
+    list[str]
+        One labelled line per target constraint.
+    """
     scope = ", ".join(target.scope_has) if target.scope_has else "None"
+    owners = ", ".join(target.owner_kinds) if target.owner_kinds else "unrestricted"
     return [
         f"syntaxes: {', '.join(target.syntaxes)}",
         f"kinds: {', '.join(target.kinds)}",
         f"scope requires: {scope}",
+        f"owner kinds: {owners}",
     ]
 
 

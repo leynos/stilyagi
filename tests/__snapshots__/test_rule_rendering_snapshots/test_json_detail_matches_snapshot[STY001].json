@@ -65,6 +65,7 @@
           "paragraph",
           "table_cell"
         ],
+        "owner_kinds": [],
         "scope_has": [],
         "syntax": "markdown"
       }

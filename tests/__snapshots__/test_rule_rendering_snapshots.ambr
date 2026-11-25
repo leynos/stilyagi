@@ -19,6 +19,7 @@
     syntaxes: python
     kinds: python_docstring
     scope requires: None
+    owner kinds: module, class, function
   
   Capabilities:
     STRUCTURE
@@ -121,6 +122,7 @@
     syntaxes: python, rust
     kinds: python_docstring, rust_doc_comment
     scope requires: None
+    owner kinds: unrestricted
   
   Capabilities:
     STRUCTURE
@@ -207,6 +209,7 @@
     syntaxes: python, rust
     kinds: python_docstring, rust_doc_comment
     scope requires: None
+    owner kinds: class, function, struct, enum, union, trait, const, static, type, macro
   
   Capabilities:
     STRUCTURE
@@ -293,6 +296,7 @@
     syntaxes: markdown
     kinds: heading
     scope requires: None
+    owner kinds: unrestricted
   
   Capabilities:
     STRUCTURE
@@ -361,6 +365,7 @@
     syntaxes: markdown
     kinds: heading, paragraph, table_cell
     scope requires: None
+    owner kinds: unrestricted
   
   Capabilities:
     STRUCTURE
@@ -438,6 +443,7 @@
     syntaxes: markdown
     kinds: heading, paragraph, table_cell
     scope requires: None
+    owner kinds: unrestricted
   
   Capabilities:
     STRUCTURE

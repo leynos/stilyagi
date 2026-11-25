@@ -44,12 +44,16 @@ sys.dont_write_bytecode = True
 def _watch(event, args):
     if event not in {"open", "os.mkdir", "os.rename", "os.remove", "os.rmdir"}:
         return
-    first = args[0] if args else None
-    if not isinstance(first, (str, bytes, os.PathLike)):
-        return
-    path = os.path.realpath(os.fsdecode(first))
-    if path == root or path.startswith(root + os.sep):
-        side_effects.append((event, path))
+    # `os.rename` and `os.replace` report both endpoints, so a move that only
+    # writes the destination would go unseen if just the source were checked.
+    watched = args[:2] if event == "os.rename" else args[:1]
+    for candidate in watched:
+        if not isinstance(candidate, (str, bytes, os.PathLike)):
+            continue
+        path = os.path.realpath(os.fsdecode(candidate))
+        if path == root or path.startswith(root + os.sep):
+            side_effects.append((event, path))
+            return
 
 
 def _forbidden(name):

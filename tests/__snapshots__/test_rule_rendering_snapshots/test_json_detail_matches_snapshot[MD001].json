@@ -53,6 +53,7 @@
         "kinds": [
           "heading"
         ],
+        "owner_kinds": [],
         "scope_has": [],
         "syntax": "markdown"
       }

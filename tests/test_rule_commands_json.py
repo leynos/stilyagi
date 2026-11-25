@@ -56,9 +56,12 @@ def test_json_list_envelope_and_descriptor_shape() -> None:
         assert isinstance(descriptor["requires"], list), "expected an array"
         assert isinstance(descriptor["targets"], list), "expected an array"
         assert isinstance(descriptor["examples"], list), "expected an array"
-        assert set(descriptor["targets"][0]) == {"syntax", "kinds", "scope_has"}, (
-            "expected the documented target shape"
-        )
+        assert set(descriptor["targets"][0]) == {
+            "syntax",
+            "kinds",
+            "scope_has",
+            "owner_kinds",
+        }, "expected the documented target shape"
 
 
 def test_json_list_and_detail_describe_the_same_rule() -> None:
