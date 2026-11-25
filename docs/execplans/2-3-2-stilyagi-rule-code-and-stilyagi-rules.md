@@ -288,6 +288,21 @@ before continuing.
   than from copied strings. `docs/repository-layout.md` section 3 now describes
   the catalogue, description, argument, command, and rendering modules and names
   `rules` and `rule` among the `cli_command_shell` consumers.
+- [x] (2026-11-25) The first push of those repairs failed hosted CodeScene:
+  `load_tested_examples` scored 9.69 for Complexity once it had to reject
+  unmarked fences and stacked markers. The per-line scan moved to a
+  `_DocumentScan` state object (`collect`, `_consume`, `_accept_marker`,
+  `_consume_block`), and the public loader keeps only the end-of-document
+  pending check it can raise itself, which also satisfies Ruff's `DOC502` rule.
+  `cs review` scores the file 10.0; hosted CodeScene passes at `57b162e7`.
+- [x] (2026-11-25) Gates on `57b162e7`: `make check-fmt`, `make markdownlint`
+  (including spelling), `make nixie`, `make typecheck`, `make lint` (exit 0;
+  Skylos, duplication, Ruff, Interrogate 100%, Pylint, df12 Pylint, ambrleaks,
+  Rustdoc, Clippy, Whitaker), and `make test` (exit 0; 371/371 nextest, all
+  Rust doctests, 2 080 pytest, 219 Python doctests with 3 skips). Logs:
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review3c.out`. Hosted
+  `lint-test` and CodeScene pass at that head; the three `release-smoke` jobs
+  are queued.
 
 ## Surprises & discoveries
 
