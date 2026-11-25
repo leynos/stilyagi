@@ -86,7 +86,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/setup-rust@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
         with:
           use-sccache: 'false'
           save-cache: 'false'
@@ -97,7 +97,7 @@ jobs:
       - name: Install makeutil
         id: makeutil
         # A digest-verified prebuilt release rather than a from-source build.
-        uses: leynos/shared-actions/.github/actions/install-makeutil@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/install-makeutil@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
 
       - name: Verify makeutil
         # Prove the installed binary runs, matches the release the action
@@ -134,7 +134,7 @@ jobs:
         # holds the value free of development flags.
         env:
           RUSTFLAGS: -D warnings
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/generate-coverage@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
         with:
           output-path: coverage.xml
           format: cobertura
@@ -166,7 +166,7 @@ jobs:
         # ratchets against it. CodeScene has no way to tell it was not
         # main, because the upload does not carry the ref.
         if: steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
         with:
           format: cobertura
           # Named rather than left to the default, because this is the
@@ -194,7 +194,7 @@ jobs:
       contents: read
     steps:
       - name: Publish the ratchet baseline
-        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
         with:
           artefact-name: coverage-baseline-handover
 
@@ -223,7 +223,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/setup-rust@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -236,7 +236,7 @@ jobs:
         # written here are the ones the pull-request lane reads.
         env:
           RUSTFLAGS: -D warnings
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        uses: leynos/shared-actions/.github/actions/generate-coverage@b50fd9a2b2f2a096d64fe44593805dd2da7f9148
         with:
           output-path: coverage.xml
           format: cobertura
