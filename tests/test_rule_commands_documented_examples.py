@@ -15,6 +15,9 @@ from stilyagi import cli, rule_commands
 from stilyagi.cli_args import build_parser
 from stilyagi.cli_rule_args import RuleDetailOptions
 
+if typ.TYPE_CHECKING:
+    import pathlib
+
 from tests.support.tested_examples import MarkedExample, load_tested_examples
 
 _EXAMPLES = load_tested_examples()
@@ -119,3 +122,41 @@ def _unexpected_check(*_args: object, **_kwargs: object) -> typ.NoReturn:
     """Fail the test when a discovery invocation falls through to `check`."""
     message = "rule discovery must not dispatch to check"
     raise AssertionError(message)
+
+
+@pytest.mark.parametrize(
+    ("body", "match"),
+    [
+        pytest.param(
+            "<!-- tested-example: a -->\n```text\nline\n",
+            "no closing fence",
+            id="unclosed-fence",
+        ),
+        pytest.param(
+            "<!-- tested-example: a -->\n\nno fence here\n",
+            "names no fenced block",
+            id="marker-without-fence",
+        ),
+        pytest.param(
+            "<!-- tested-example: a -->\n```text\nx\n```\n"
+            "<!-- tested-example: a -->\n```text\ny\n```\n",
+            "duplicate tested-example marker",
+            id="duplicate-marker",
+        ),
+    ],
+)
+def test_the_loader_rejects_a_malformed_document(
+    body: str,
+    match: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    """A malformed marker or fence fails rather than loading silently.
+
+    Silent tolerance would let a renamed marker leave a test reading nothing
+    while still passing, so each shape the style guide forbids is rejected.
+    """
+    path = tmp_path / "guide.md"
+    path.write_text(body, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=match):
+        load_tested_examples(path)

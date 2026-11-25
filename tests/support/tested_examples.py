@@ -15,6 +15,9 @@ import pathlib
 import re
 import typing as typ
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 #: Repository root, so the guide resolves from any test's working directory.
 REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[2]
 
@@ -73,7 +76,8 @@ def load_tested_examples(
     Raises
     ------
     ValueError
-        A marker names no following fenced block, or two markers share a name.
+        A marker names no following fenced block, two markers share a name, or
+        a fence is not terminated.
 
     Examples
     --------
@@ -86,36 +90,88 @@ def load_tested_examples(
     lines = path.read_text(encoding="utf-8").splitlines()
     index = 0
     while index < len(lines):
-        line = lines[index]
-        marker = _MARKER.match(line)
-        if marker is not None:
-            pending = marker.group("name")
+        index, pending = _consume_marker(lines, index, pending)
+        if pending is None:
             index += 1
             continue
-        fence = _FENCE.match(line)
-        if fence is None or pending is None:
+        block = _consume_fence(lines, index, pending)
+        if block is None:
             index += 1
             continue
-        language = fence.group("language")
-        body: list[str] = []
-        index += 1
-        while index < len(lines) and not lines[index].startswith("```"):
-            body.append(lines[index])
-            index += 1
-        if index == len(lines):
-            message = f"marker {pending!r} has no closing fence"
-            raise ValueError(message)
-        if pending in examples:
-            message = f"duplicate tested-example marker: {pending}"
-            raise ValueError(message)
-        examples[pending] = MarkedExample(
-            name=pending,
-            language=language,
-            lines=tuple(body),
-        )
+        example, index = block
+        _store_example(examples, example)
         pending = None
-        index += 1
     if pending is not None:
         message = f"marker {pending!r} names no fenced block"
         raise ValueError(message)
     return examples
+
+
+def _consume_marker(
+    lines: cabc.Sequence[str],
+    index: int,
+    pending: str | None,
+) -> tuple[int, str | None]:
+    """Return the index after ``lines[index]`` and the marker it carries.
+
+    Returns
+    -------
+    tuple[int, str | None]
+        The next index and the pending marker name, if the line is a marker.
+    """
+    marker = _MARKER.match(lines[index])
+    return index, pending if marker is None else marker.group("name")
+
+
+def _consume_fence(
+    lines: cabc.Sequence[str],
+    index: int,
+    name: str,
+) -> tuple[MarkedExample, int] | None:
+    """Read the fenced block starting at ``index``, or return ``None``.
+
+    Returns
+    -------
+    tuple[MarkedExample, int] | None
+        The block and the index after its closing fence, or ``None`` when the
+        line is not an opening fence.
+
+    Raises
+    ------
+    ValueError
+        The opening fence is never closed.
+    """
+    fence = _FENCE.match(lines[index])
+    if fence is None:
+        return None
+    body: list[str] = []
+    cursor = index + 1
+    while cursor < len(lines) and not lines[cursor].startswith("```"):
+        body.append(lines[cursor])
+        cursor += 1
+    if cursor == len(lines):
+        message = f"marker {name!r} has no closing fence"
+        raise ValueError(message)
+    example = MarkedExample(
+        name=name,
+        language=fence.group("language"),
+        lines=tuple(body),
+    )
+    return example, cursor + 1
+
+
+def _store_example(
+    examples: dict[str, MarkedExample],
+    example: MarkedExample,
+) -> None:
+    """Record one example, rejecting a duplicate marker name.
+
+    Raises
+    ------
+    ValueError
+        Another example already uses this marker name.
+    """
+    if example.name in examples:
+        message = f"duplicate tested-example marker: {example.name}"
+        raise ValueError(message)
+    examples[example.name] = example
