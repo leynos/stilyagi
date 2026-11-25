@@ -1,0 +1,193 @@
+"""Encode builtin rule descriptors as the schema-version-1 JSON shape.
+
+The machine-readable half of the rule-presentation adapter. It reads the domain
+records and returns plain dictionaries or a serialized envelope; it never
+decides which rules exist, resolves configuration, or writes to a stream. It
+sits apart from the text renderer so each format can change for its own reason
+and a text-only edit cannot perturb the JSON contract.
+
+The schema is version 1. Keys are written in a fixed order so a diff between two
+envelopes shows semantic change rather than incidental reordering, and set-like
+arrays are sorted so their order is stable.
+"""
+
+import collections.abc as cabc
+import json
+import typing as typ
+
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
+    from stilyagi.rules.base import RegionTarget, RuleMetadata
+    from stilyagi.rules.description import (
+        RuleConfiguration,
+        RuleExample,
+        RuleOption,
+    )
+
+__all__ = [
+    "SCHEMA_VERSION",
+    "detail_envelope",
+    "list_envelope",
+]
+
+#: Version of the JSON envelope and descriptor shape.
+SCHEMA_VERSION = 1
+
+#: How an example's documented exit status is derived. Injected rather than
+#: imported so this encoder stays independent of the text renderer.
+type ExitCode = cabc.Callable[[RuleExample], int]
+
+
+def list_envelope(
+    rules: cabc.Iterable[RuleMetadata],
+    *,
+    exit_code: ExitCode,
+) -> str:
+    """Return the schema-version-1 list envelope as JSON text.
+
+    Parameters
+    ----------
+    rules:
+        Descriptors in presentation order.
+    exit_code:
+        Derives one example's documented exit status.
+
+    Returns
+    -------
+    str
+        The complete envelope, ending in one newline.
+    """
+    return _dump_json({
+        "schema_version": SCHEMA_VERSION,
+        "rules": _descriptors(rules, exit_code=exit_code),
+    })
+
+
+def detail_envelope(rule: RuleMetadata, *, exit_code: ExitCode) -> str:
+    """Return the schema-version-1 detail envelope as JSON text.
+
+    Parameters
+    ----------
+    rule:
+        The descriptor to encode.
+    exit_code:
+        Derives one example's documented exit status.
+
+    Returns
+    -------
+    str
+        The complete envelope, ending in one newline.
+    """
+    return _dump_json({
+        "schema_version": SCHEMA_VERSION,
+        "rule": _descriptor(rule, exit_code=exit_code),
+    })
+
+
+def _descriptors(
+    rules: cabc.Iterable[RuleMetadata],
+    *,
+    exit_code: ExitCode,
+) -> list[dict[str, object]]:
+    """Encode every descriptor in the caller's order.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        One JSON-ready mapping per rule.
+    """
+    return [_descriptor(rule, exit_code=exit_code) for rule in rules]
+
+
+def _descriptor(
+    rule: RuleMetadata,
+    *,
+    exit_code: ExitCode,
+) -> dict[str, object]:
+    """Encode one descriptor with the fixed schema-version-1 key order.
+
+    Returns
+    -------
+    dict[str, object]
+        The rule as a JSON-ready mapping.
+    """
+    description = rule.description
+    return {
+        "code": rule.code,
+        "name": rule.name,
+        "pack": rule.pack,
+        "summary": description.summary,
+        "explanation": description.explanation,
+        "default_severity": rule.default_severity,
+        "targets": [_target_descriptor(rule.target)],
+        "requires": sorted(description.requires),
+        "requires_nlp": rule.requires_nlp,
+        "fixable": description.fixable,
+        "fix_mode": description.fix_mode,
+        "fixes": description.fixes,
+        "enabled_by_default": description.enabled_by_default,
+        "preview": description.preview,
+        "configuration": _configuration_descriptor(description.configuration),
+        "examples": [
+            {
+                "title": example.title,
+                "source": example.source,
+                "configuration": example.configuration,
+                "expected_codes": list(example.expected_codes),
+                "exit_code": exit_code(example),
+            }
+            for example in description.examples
+        ],
+        "limitations": list(description.limitations),
+        "references": list(description.references),
+    }
+
+
+def _target_descriptor(target: RegionTarget) -> dict[str, object]:
+    """Encode one target with its set-like arrays sorted lexically.
+
+    The schema-version-1 `syntax` key stays a single string for consumers that
+    already parse it, and repeats the target's declared syntaxes joined by a
+    comma when a rule reads more than one language. `kinds` and `scope_has`
+    remain sorted arrays so their order is stable.
+
+    Returns
+    -------
+    dict[str, object]
+        The target as a JSON-ready mapping.
+    """
+    return {
+        "syntax": ",".join(target.syntaxes),
+        "kinds": sorted(target.kinds),
+        "scope_has": sorted(target.scope_has),
+    }
+
+
+def _configuration_descriptor(configuration: RuleConfiguration) -> dict[str, object]:
+    """Render a configuration record and its typed options."""
+    return {
+        "enablement": configuration.enablement,
+        "toml": configuration.toml,
+        "options": [_option_descriptor(option) for option in configuration.options],
+    }
+
+
+def _option_descriptor(option: RuleOption) -> dict[str, object]:
+    """Render one typed option in the fixed schema-version-1 shape."""
+    return {
+        "name": option.name,
+        "type": option.type,
+        "default": (
+            option.default if isinstance(option.default, bool) else list(option.default)
+        ),
+        "description": option.description,
+        "constraints": list(option.constraints),
+        "variants": [
+            {"value": variant.value, "description": variant.description}
+            for variant in option.variants
+        ],
+    }
+
+
+def _dump_json(payload: dict[str, object]) -> str:
+    """Serialize one explicit payload in its constructed key order."""
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"

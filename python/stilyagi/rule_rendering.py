@@ -12,8 +12,10 @@ guessing. Every successful rendering ends in exactly one newline.
 import json
 import typing as typ
 
+from stilyagi import rule_rendering_json
 from stilyagi.check_outcome import compute_exit_code
 from stilyagi.diagnostics import Diagnostic, Severity
+from stilyagi.rule_rendering_json import SCHEMA_VERSION
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
@@ -25,9 +27,6 @@ if typ.TYPE_CHECKING:  # pragma: no cover - typing only
         RuleExample,
         RuleOption,
     )
-
-#: Version of the JSON envelope and descriptor shape.
-SCHEMA_VERSION = 1
 
 _OUTPUT_FORMATS: typ.Final[frozenset[str]] = frozenset({"text", "json"})
 _LIST_COLUMNS = ("CODE", "NAME", "SEVERITY", "FIX-MODE", "DEFAULT", "PREVIEW")
@@ -69,10 +68,7 @@ def render_rule_list(
     """
     _require_output_format(output_format)
     if output_format == "json":
-        return _dump_json({
-            "schema_version": SCHEMA_VERSION,
-            "rules": _descriptors(rules),
-        })
+        return rule_rendering_json.list_envelope(rules, exit_code=example_exit_code)
     return _render_list_text(rules)
 
 
@@ -102,7 +98,7 @@ def render_rule_detail(
     """
     _require_output_format(output_format)
     if output_format == "json":
-        return _dump_json({"schema_version": SCHEMA_VERSION, "rule": _descriptor(rule)})
+        return rule_rendering_json.detail_envelope(rule, exit_code=example_exit_code)
     return _render_detail_text(rule)
 
 
@@ -333,96 +329,6 @@ def _render_default(default: OptionDefault) -> str:
     if isinstance(default, bool):
         return str(default).lower()
     return json.dumps(list(default), ensure_ascii=False)
-
-
-def _descriptors(rules: cabc.Iterable[RuleMetadata]) -> list[dict[str, object]]:
-    """Render every descriptor in the caller's order."""
-    return [_descriptor(rule) for rule in rules]
-
-
-def _descriptor(rule: RuleMetadata) -> dict[str, object]:
-    """Render one descriptor with the fixed schema-version-1 key order."""
-    description = rule.description
-    return {
-        "code": rule.code,
-        "name": rule.name,
-        "pack": rule.pack,
-        "summary": description.summary,
-        "explanation": description.explanation,
-        "default_severity": rule.default_severity,
-        "targets": [_target_descriptor(rule.target)],
-        "requires": sorted(description.requires),
-        "requires_nlp": rule.requires_nlp,
-        "fixable": description.fixable,
-        "fix_mode": description.fix_mode,
-        "fixes": description.fixes,
-        "enabled_by_default": description.enabled_by_default,
-        "preview": description.preview,
-        "configuration": _configuration_descriptor(description.configuration),
-        "examples": [
-            {
-                "title": example.title,
-                "source": example.source,
-                "configuration": example.configuration,
-                "expected_codes": list(example.expected_codes),
-                "exit_code": example_exit_code(example),
-            }
-            for example in description.examples
-        ],
-        "limitations": list(description.limitations),
-        "references": list(description.references),
-    }
-
-
-def _target_descriptor(target: RegionTarget) -> dict[str, object]:
-    """Render one target with its set-like arrays sorted lexically.
-
-    The schema-version-1 `syntax` key stays a single string for consumers that
-    already parse it, and repeats the target's declared syntaxes joined by a
-    comma when a rule reads more than one language. `kinds` and `scope_has`
-    remain sorted arrays so their order is stable.
-
-    Returns
-    -------
-    dict[str, object]
-        The target as a JSON-ready mapping.
-    """
-    return {
-        "syntax": ",".join(target.syntaxes),
-        "kinds": sorted(target.kinds),
-        "scope_has": sorted(target.scope_has),
-    }
-
-
-def _configuration_descriptor(configuration: RuleConfiguration) -> dict[str, object]:
-    """Render a configuration record and its typed options."""
-    return {
-        "enablement": configuration.enablement,
-        "toml": configuration.toml,
-        "options": [_option_descriptor(option) for option in configuration.options],
-    }
-
-
-def _option_descriptor(option: RuleOption) -> dict[str, object]:
-    """Render one typed option in the fixed schema-version-1 shape."""
-    return {
-        "name": option.name,
-        "type": option.type,
-        "default": (
-            option.default if isinstance(option.default, bool) else list(option.default)
-        ),
-        "description": option.description,
-        "constraints": list(option.constraints),
-        "variants": [
-            {"value": variant.value, "description": variant.description}
-            for variant in option.variants
-        ],
-    }
-
-
-def _dump_json(payload: dict[str, object]) -> str:
-    """Serialize one explicit payload in its constructed key order."""
-    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
 def _yes_no(*, value: bool) -> str:
