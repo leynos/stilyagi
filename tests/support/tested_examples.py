@@ -24,8 +24,11 @@ REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().pare
 #: The guide a caller loads examples from, unless it names another document.
 USERS_GUIDE: typ.Final[pathlib.Path] = REPOSITORY_ROOT / "docs" / "users-guide.md"
 
-_MARKER = re.compile(r"^<!-- tested-example: (?P<name>[A-Za-z0-9_-]+) -->$")
-_FENCE = re.compile(r"^```(?P<language>[A-Za-z0-9_-]*)$")
+#: A marker and its fence may be indented, as they are inside a list item.
+_MARKER = re.compile(r"^[ \t]*<!-- tested-example: (?P<name>[A-Za-z0-9_-]+) -->[ \t]*$")
+_FENCE = re.compile(r"^(?P<indent>[ \t]*)```(?P<language>[A-Za-z0-9_-]*)[ \t]*$")
+#: A closing fence is backticks alone, optionally surrounded by whitespace.
+_CLOSING_FENCE = re.compile(r"^[ \t]*```[ \t]*$")
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -63,6 +66,11 @@ def load_tested_examples(
 ) -> dict[str, MarkedExample]:
     """Return every marked block in ``path`` keyed by its marker name.
 
+    The style guide requires every fenced example to carry a marker, so an
+    unmarked opening fence is an error rather than something to skip: skipping
+    it would let a new example ship with no coverage while this loader still
+    reported success.
+
     Parameters
     ----------
     path:
@@ -76,29 +84,40 @@ def load_tested_examples(
     Raises
     ------
     ValueError
-        A marker names no following fenced block, two markers share a name, or
-        a fence is not terminated.
+        A fence has no preceding marker, a marker names no following block,
+        two markers share a name, one marker immediately follows another, or a
+        fence is not terminated.
 
     Examples
     --------
     >>> examples = load_tested_examples()
-    >>> sorted(examples)[:1]
-    ['projection-anomaly-record']
+    >>> "projection-anomaly-record" in examples
+    True
     """
     examples: dict[str, MarkedExample] = {}
     pending: str | None = None
     lines = path.read_text(encoding="utf-8").splitlines()
     index = 0
     while index < len(lines):
-        index, pending = _consume_marker(lines, index, pending)
+        marker = _MARKER.match(lines[index])
+        if marker is not None:
+            if pending is not None:
+                message = (
+                    f"marker {pending!r} names no fenced block before "
+                    f"marker {marker.group('name')!r}"
+                )
+                raise ValueError(message)
+            pending = marker.group("name")
+            index += 1
+            continue
+        fence = _FENCE.match(lines[index])
+        if fence is None:
+            index += 1
+            continue
         if pending is None:
-            index += 1
-            continue
-        block = _consume_fence(lines, index, pending)
-        if block is None:
-            index += 1
-            continue
-        example, index = block
+            message = f"unmarked fence at line {index + 1} of {path.name}"
+            raise ValueError(message)
+        example, index = _read_block(lines, index, fence, pending)
         _store_example(examples, example)
         pending = None
     if pending is not None:
@@ -107,47 +126,34 @@ def load_tested_examples(
     return examples
 
 
-def _consume_marker(
+def _read_block(
     lines: cabc.Sequence[str],
     index: int,
-    pending: str | None,
-) -> tuple[int, str | None]:
-    """Return the index after ``lines[index]`` and the marker it carries.
-
-    Returns
-    -------
-    tuple[int, str | None]
-        The next index and the pending marker name, if the line is a marker.
-    """
-    marker = _MARKER.match(lines[index])
-    return index, pending if marker is None else marker.group("name")
-
-
-def _consume_fence(
-    lines: cabc.Sequence[str],
-    index: int,
+    fence: re.Match[str],
     name: str,
-) -> tuple[MarkedExample, int] | None:
-    """Read the fenced block starting at ``index``, or return ``None``.
+) -> tuple[MarkedExample, int]:
+    """Read the marked block whose opening fence is at ``index``.
+
+    Only a line that is entirely a closing fence ends the block, so a nested
+    language-tagged fence such as a fenced block inside a shell transcript
+    stays part of the content. Content is dedented by the opening fence's own
+    indentation, which is how Markdown treats a block inside a list item.
 
     Returns
     -------
-    tuple[MarkedExample, int] | None
-        The block and the index after its closing fence, or ``None`` when the
-        line is not an opening fence.
+    tuple[MarkedExample, int]
+        The block and the index after its closing fence.
 
     Raises
     ------
     ValueError
         The opening fence is never closed.
     """
-    fence = _FENCE.match(lines[index])
-    if fence is None:
-        return None
+    indent = len(fence.group("indent"))
     body: list[str] = []
     cursor = index + 1
-    while cursor < len(lines) and not lines[cursor].startswith("```"):
-        body.append(lines[cursor])
+    while cursor < len(lines) and not _CLOSING_FENCE.match(lines[cursor]):
+        body.append(_strip_indent(lines[cursor], indent))
         cursor += 1
     if cursor == len(lines):
         message = f"marker {name!r} has no closing fence"
@@ -158,6 +164,12 @@ def _consume_fence(
         lines=tuple(body),
     )
     return example, cursor + 1
+
+
+def _strip_indent(line: str, width: int) -> str:
+    """Remove up to ``width`` leading spaces or tabs from ``line``."""
+    leading = len(line) - len(line.lstrip(" \t"))
+    return line[min(leading, width) :]
 
 
 def _store_example(

@@ -2395,8 +2395,13 @@ and behaviour-driven scenarios.
 
 `tests/support/tested_examples.py` is the shared loader for this policy.
 `load_tested_examples` reads a Markdown file, returns each marked block by
-identifier with its fence language and lines, and rejects a marker that names
-no block, an unterminated fence, and a duplicate identifier.
+identifier with its fence language and lines. It rejects a fence with no
+preceding marker, a marker that names no block, a marker that immediately
+follows another, a duplicate identifier, and an unterminated fence. Only a line
+that is backticks and permitted whitespace closes a block, so a nested
+language-tagged fence stays content, and reaching the end of the file without a
+closing fence fails rather than returning truncated text. A block indented
+inside a list item is dedented by its fence's indentation.
 `tests/test_rule_commands_documented_examples.py` uses it: every
 `stilyagi rules` and `stilyagi rule` transcript in the user's guide is parsed
 by the real argument parser, and the published unknown-code transcript is
@@ -2404,7 +2409,9 @@ asserted against the command's real output and exit status. The rule-discovery
 examples added by roadmap 2.3.2 are therefore executed from the published
 document rather than from a copy.
 
-The loader covers the documents that call it. A user-facing fence elsewhere
+Every fence in `docs/users-guide.md` carries a marker, so adding an unmarked
+example there fails test collection rather than passing unexercised. The loader
+covers the documents that call it. A user-facing fence in another document
 still needs a marker and a test that loads it before its coverage is real, and
 `make test-doc` does not check Markdown fences.
 

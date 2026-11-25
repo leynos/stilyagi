@@ -275,6 +275,19 @@ before continuing.
   control has one protected module import another before calling its own
   guarded function. The control was verified to fail against the pre-fix loader
   and pass after it.
+- [x] (2026-11-25) Third formal review, four inline findings and one failed
+  pre-merge check, all repaired. The loader now treats an unmarked fence as an
+  error rather than skipping it, so every fence in `docs/users-guide.md`
+  carries a marker and an unexercised example cannot ship; the 26 previously
+  unmarked fences were marked in place. A second marker while one is pending
+  raises even when the names match, and the pending name clears when its block
+  closes. A closing fence is now backticks plus permitted whitespace only, so a
+  language-tagged line inside a block stays content, and reaching the end of
+  the file without one fails instead of returning truncated text. The command
+  dispatch test is parameterised from the guide's two invocation blocks rather
+  than from copied strings. `docs/repository-layout.md` section 3 now describes
+  the catalogue, description, argument, command, and rendering modules and names
+  `rules` and `rule` among the `cli_command_shell` consumers.
 
 ## Surprises & discoveries
 

@@ -84,20 +84,18 @@ def test_the_guide_unknown_code_transcript_matches_the_command() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("line", "expected_status"),
-    [
-        pytest.param("stilyagi rules", 0, id="list"),
-        pytest.param("stilyagi rules --output-format json", 0, id="list-json"),
-        pytest.param("stilyagi rules --select TERM", 0, id="select-term"),
-        pytest.param("stilyagi rules --severity warning", 0, id="severity"),
-        pytest.param(
-            "stilyagi rules --preview no --fixable yes", 0, id="preview-fixable"
-        ),
-        pytest.param("stilyagi rule TERM001", 0, id="detail"),
-        pytest.param("stilyagi rule STY001 --output-format json", 0, id="detail-json"),
-    ],
-)
+#: Every discovery invocation the guide publishes, with its document status.
+#: The two blocks list only invocations the guide presents as succeeding, so
+#: each status is ``0``. The status is asserted rather than assumed because the
+#: commands share the real dispatch path with `check`.
+_DOCUMENTED_DISCOVERY_LINES = [
+    pytest.param(line, 0, id=f"{name}:{number}")
+    for name in ("rules-invocations", "rule-invocations")
+    for number, line in enumerate(_example(name).lines)
+]
+
+
+@pytest.mark.parametrize(("line", "expected_status"), _DOCUMENTED_DISCOVERY_LINES)
 def test_documented_invocations_succeed_with_their_stated_status(
     line: str,
     expected_status: int,
@@ -138,11 +136,17 @@ def _unexpected_check(*_args: object, **_kwargs: object) -> typ.NoReturn:
             id="marker-without-fence",
         ),
         pytest.param(
+            "<!-- tested-example: a -->\n<!-- tested-example: a -->\n```text\nx\n```\n",
+            "names no fenced block before marker",
+            id="marker-before-marker",
+        ),
+        pytest.param(
             "<!-- tested-example: a -->\n```text\nx\n```\n"
             "<!-- tested-example: a -->\n```text\ny\n```\n",
             "duplicate tested-example marker",
             id="duplicate-marker",
         ),
+        pytest.param("```text\nx\n```\n", "unmarked fence", id="unmarked-fence"),
     ],
 )
 def test_the_loader_rejects_a_malformed_document(
@@ -160,3 +164,40 @@ def test_the_loader_rejects_a_malformed_document(
 
     with pytest.raises(ValueError, match=match):
         load_tested_examples(path)
+
+
+def test_a_language_tagged_fence_inside_a_block_stays_content(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Only a bare closing fence ends a block, so nested fences are content."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "<!-- tested-example: nested -->\n```markdown\n```python\nprint('x')\n```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["nested"].lines == ("```python", "print('x')"), (
+        "expected the inner language-tagged fence to stay in the block"
+    )
+
+
+def test_an_indented_marker_and_fence_are_dedented(tmp_path: pathlib.Path) -> None:
+    """A block nested in a list item loads its content without the list indent."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "- an item:\n"
+        "\n"
+        "  <!-- tested-example: indented -->\n"
+        "  ```python\n"
+        "  value = 1\n"
+        "  ```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["indented"].lines == ("value = 1",), (
+        "expected the list indentation to be removed from the block"
+    )

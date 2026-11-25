@@ -127,21 +127,45 @@ new maintainer needs to recognize quickly and omits transient cache contents.
     `rule_view.py` is the read-only façade other modules import.
 - `python/stilyagi/rules/`
   - Owns the typed rule boundary (`base.py`), selection and suppression policy,
-    and the builtin pack. `rules/builtin/` holds one module per rule family plus
-    `text.py` for shared token and byte-offset helpers, `summary.py` for
-    the documentation rules' physical-line, summary-selection, and
-    source-anchor analysis, `line_split.py` for the physical-line walk, and
-    `markup.py` for the conservative Markdown exclusion predicates that
-    analysis consults. Markdown and documentation
-    rules share the same registry, inventory order, and policy path.
+    and the builtin pack. `catalogue.py` answers read-only inventory queries
+    without configuration, document extraction, rule execution, or cache
+    access, and `description.py` holds the immutable documentation records the
+    catalogue publishes.
+  - `rules/builtin/` holds one module per rule family plus `text.py` for shared
+    token and byte-offset helpers, `summary.py` for the documentation rules'
+    physical-line, summary-selection, and source-anchor analysis,
+    `line_split.py` for the physical-line walk, and `markup.py` for the
+    conservative Markdown exclusion predicates that analysis consults.
+    `descriptions.py` and `doc_descriptions.py` author the catalogue prose for
+    the Markdown and documentation families, and `shared_text.py` holds the
+    constants both cite. Markdown and documentation rules share the same
+    registry, inventory order, and policy path.
 - `python/stilyagi/cli_config_command.py`, `cli_dump_ir.py`, and `cli_clean.py`
   - Coordinate configuration inspection, canonical Markdown IR output, and
     removal of Stilyagi-owned cache data.
+- `python/stilyagi/cli_shared_args.py`
+  - Builds the argparse options more than one command accepts: `--config`,
+    `--isolated`, `--output-format`, and the repeatable rule-code selectors.
+    One builder per shape keeps their defaults, metavals, and validation from
+    drifting between commands.
+- `python/stilyagi/cli_rule_args.py`
+  - Builds and validates the option surface of `rules` and `rule`, turning a
+    parsed namespace into immutable records that hold domain filters rather
+    than argparse state.
+- `python/stilyagi/rule_commands.py`
+  - Runs the read-only `rules` and `rule` commands from the static catalogue.
+    It reads no project configuration, document, plugin, or cache, so it still
+    answers while a repository's configuration is broken.
+- `python/stilyagi/rule_rendering.py` and `rule_rendering_json.py`
+  - Present the catalogue's description records as deterministic text and as
+    the schema-version-1 JSON envelope respectively. The split lets each format
+    change independently; neither resolves configuration or runs a rule.
 - `python/stilyagi/cli_command_shell.py`
   - Owns the report shape shared by those commands: `command_streams`
     resolves their optional output and error streams, and
     `write_command_failure` renders the `stilyagi <command>: <reason>`
-    sentence with status two.
+    sentence with status two. `config`, `dump-ir`, `clean`, `rules`, and `rule`
+    are its consumers.
 - `crates/stilyagi-pyext/`
   - PyO3-based Rust bridge crate.
   - Owns the compiled `_stilyagi_rs` module and the Rust-side bridge tests.

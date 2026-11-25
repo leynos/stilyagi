@@ -36,6 +36,7 @@ directly.
 The mixed-package skeleton already exposes a small, concrete import surface
 that later roadmap slices will extend in place:
 
+<!-- tested-example: import-surface -->
 ```python
 import stilyagi
 from stilyagi import engine, model
@@ -54,6 +55,7 @@ owns a long-lived architectural role:
   rendering, and runner orchestration. It now also exposes the first real
   extraction call:
 
+  <!-- tested-example: engine-extract-markdown -->
   ```python
   from stilyagi import engine, model
 
@@ -68,6 +70,7 @@ owns a long-lived architectural role:
   Query the current IR region-kind vocabulary before writing code that branches
   on region kinds:
 
+  <!-- tested-example: supported-region-kinds -->
   ```python
   from stilyagi import engine
 
@@ -89,6 +92,7 @@ owns a long-lived architectural role:
 Users migrating from the provisional repository layout should also note one
 removal:
 
+<!-- tested-example: legacy-smoke-module-removal -->
 ```shell
 python -m stilyagi.smoke
 ```
@@ -99,6 +103,7 @@ from Python, and `1` on any smoke-check failure.
 
 The same check is available as a public Python API:
 
+<!-- tested-example: smoke-check-api -->
 ```python
 from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
@@ -152,6 +157,7 @@ The new extraction path is intentionally narrow in this slice:
 
 A minimal Python docstring extraction example:
 
+<!-- tested-example: docstring-extraction-example -->
 ```python
 from stilyagi import engine, model
 
@@ -187,6 +193,7 @@ assert document.ir["regions"][1]["owner"] == {
 `cli.run_check` is part of the public import surface, and this release adds a
 `collaborators` keyword to it:
 
+<!-- tested-example: run-check-api -->
 ```python
 from stilyagi import cli
 
@@ -199,6 +206,7 @@ bare `*`), and it takes a `cli.CheckCollaborators` bundle so a test can inject
 the pipeline's boundaries — the config resolver, renderer, rule runner, output
 stream, and error reporter — without constructing a command line:
 
+<!-- tested-example: run-check-collaborators -->
 ```python
 exit_code = cli.run_check(
     cli.CheckOptions(targets=("docs",)),
@@ -218,6 +226,7 @@ Stilyagi ships a built-in smoke check that confirms the embedded Rust extension
 module is correctly installed and reachable from Python. It is available as a
 CLI entrypoint:
 
+<!-- tested-example: smoke-cli-entrypoint -->
 ```shell
 python -m stilyagi.smoke
 ```
@@ -227,6 +236,7 @@ failure, making it suitable for Makefile targets and CI steps.
 
 The same check is also callable programmatically:
 
+<!-- tested-example: smoke-check-programmatic-api -->
 ```python
 from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
@@ -353,6 +363,7 @@ decided per file, how long a pass took. Progress records go to standard error,
 so `--verbose` never contaminates a pipeline. Each begins with a level, the
 emitting logger, and the message:
 
+<!-- tested-example: verbose-progress-record -->
 ```text
 INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1, operation='collect_checked_files')
 ```
@@ -490,6 +501,7 @@ Each rule is inert until its own table sets `enabled = true`. The default
 `lint.select` already includes the `DOC` prefix, so selection alone cannot
 express opt-in.
 
+<!-- tested-example: doc-rules-enable-toml -->
 ```toml
 [rule.DOC001]
 enabled = true
@@ -536,6 +548,7 @@ Stilyagi discovers those files, or `pyproject.toml`, in the target's directory
 and then its ancestors; inside `pyproject.toml` every table gains a
 `tool.stilyagi` prefix.
 
+<!-- tested-example: standalone-config-toml -->
 ```toml
 # .stilyagi.toml or stilyagi.toml
 [lint]
@@ -550,6 +563,7 @@ terms = ["obviously", "clearly"]
 case_sensitive = false
 ```
 
+<!-- tested-example: pyproject-config-toml -->
 ```toml
 # pyproject.toml
 [tool.stilyagi.lint]
@@ -575,6 +589,7 @@ holding the effective config file, and `*` crosses directory separators.
 
 The whole pack is disabled when `plugins` omits `builtin`:
 
+<!-- tested-example: plugins-empty-toml -->
 ```toml
 plugins = []
 ```
@@ -582,6 +597,7 @@ plugins = []
 Each finding is filtered by its primary span's start byte. The supported
 directives are:
 
+<!-- tested-example: inline-directives-markdown -->
 ```markdown
 <!-- stilyagi: disable STY -->
 <!-- stilyagi: enable STY001 -->
@@ -624,6 +640,7 @@ For JSON output without a key, `values` contains the complete effective
 configuration and `origins` maps each leaf path to its source. For example,
 `stilyagi config lint.select --output-format json` returns this shape:
 
+<!-- tested-example: config-effective-json -->
 ```json
 {
   "key": "lint.select",
@@ -666,6 +683,7 @@ patch instead of changing anything. No source byte on disk is touched. The
 patch uses `a/<path>` and `b/<path>` headers with three lines of context, so it
 is accepted by `git apply`:
 
+<!-- tested-example: diff-patch-to-file -->
 ```shell
 stilyagi check --diff > fixes.patch
 git apply fixes.patch
@@ -675,6 +693,7 @@ Under `--diff`, standard output carries the patch and nothing else. The
 rendered diagnostics and the summary line move to standard error, so a shell
 pipeline can consume the patch directly:
 
+<!-- tested-example: diff-patch-pipe -->
 ```shell
 stilyagi check --diff | git apply
 ```
@@ -704,6 +723,7 @@ byte-empty standard output and may write nothing to standard error. To tell
 them apart, run with `--verbose` and read the `render_diff` record, which is
 emitted once per `--diff` run:
 
+<!-- tested-example: diff-rendered-record -->
 ```text
 INFO stilyagi.cli: diff rendered (elapsed_ms=0, operation='render_diff', patch_byte_count=0, patched_files=0, planned_files=1)
 ```
@@ -796,6 +816,7 @@ would be harder to audit than a file that was left alone.
 Every refusal is reported and states that the file was not modified. Most also
 name the rule codes responsible:
 
+<!-- tested-example: fix-error-synthetic-span -->
 ```text
 fix-error/synthetic-span: docs/notes.md: PUN201: span is not source-backed;
 file was not modified
@@ -805,6 +826,7 @@ Two identifiers name no rule, because no rule proposed the edit they refuse. A
 stream input and a file that changed on disk are both discovered after the
 rules have run, so their lines carry the reason alone:
 
+<!-- tested-example: fix-error-changed-on-disk -->
 ```text
 fix-error/changed-on-disk: docs/notes.md: the file changed on disk after it was
 planned, so the planned edits were not written; file was not modified; no edits
@@ -843,6 +865,7 @@ names the input for reporting only; it does not identify a file to write. Under
 `--fix`, therefore, a piped document's repaired text is written to standard
 output, and the diagnostics and summary move to standard error:
 
+<!-- tested-example: fix-stdin-rewrite -->
 ```shell
 stilyagi check --fix - --stdin-filename README.md < README.md > fixed.md
 ```
@@ -869,6 +892,7 @@ produces no diagnostic and therefore no edit. A code excluded by
 `lint.unfixable` still produces its diagnostic and still exits `1` — it is
 simply never planned over. A fix setting is not a way to hide a finding:
 
+<!-- tested-example: fixable-unfixable-toml -->
 ```toml
 [lint]
 fixable = ["MD", "PUN"]
@@ -907,6 +931,7 @@ explains it.
 
 Examples:
 
+<!-- tested-example: check-exit-code-invocations -->
 ```shell
 stilyagi check .
 stilyagi check docs/ --output-format json
@@ -922,6 +947,7 @@ stilyagi check --fix - --stdin-filename README.md < README.md
 
 Use `dump-ir` to inspect the canonical JSON produced by the Rust extractor:
 
+<!-- tested-example: dump-ir-invocations -->
 ```shell
 stilyagi dump-ir README.md
 stilyagi dump-ir docs/ --output-format json
