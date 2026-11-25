@@ -220,7 +220,6 @@ MD001_DESCRIPTION = RuleDescription(
             title="A skipped level is reported",
             source="# Start\n### Detail\n",
             expected_codes=("MD001",),
-            exit_code=1,
         ),
         RuleExample(
             title="Consecutive levels are accepted",
@@ -318,14 +317,12 @@ TERM001_DESCRIPTION = RuleDescription(
             source="This is obviously fine.\n",
             configuration=_TERM_ENABLE_TOML,
             expected_codes=("TERM001",),
-            exit_code=1,
         ),
         RuleExample(
             title="Case-insensitive matching folds case",
             source="Obviously, this is fine.\n",
             configuration=_TERM_SELECTION_TOML,
             expected_codes=("TERM001",),
-            exit_code=1,
         ),
         RuleExample(
             title="Case-sensitive matching requires the exact spelling",
@@ -338,14 +335,12 @@ TERM001_DESCRIPTION = RuleDescription(
             source="This is obviously-not fine.\n",
             configuration=_TERM_SELECTION_TOML,
             expected_codes=("TERM001",),
-            exit_code=1,
         ),
         RuleExample(
             title="Unicode case folding applies to whole tokens",
             source="STRASSE matters.\n",
             configuration=_TERM_UNICODE_TOML,
             expected_codes=("TERM001",),
-            exit_code=1,
         ),
     ),
     limitations=(

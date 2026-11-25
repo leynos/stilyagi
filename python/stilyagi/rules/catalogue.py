@@ -36,19 +36,18 @@ class RuleNotFoundError(LookupError):
     Parameters
     ----------
     code:
-        The code that matched no rule, retained for callers that render the
-        failure and for tests that assert the exact miss.
+        The code that matched no rule, retained verbatim for callers that
+        render the failure and for tests that assert the exact miss. Keeping
+        the raw value is deliberate: this is a domain query miss, and how the
+        command line chooses to present it -- including escaping control
+        characters so a failure stays on one line -- belongs to the adapter
+        that writes standard error.
     """
 
     def __init__(self, code: str) -> None:
         """Record the missing code in the message and on the exception."""
         self.code = code
-        super().__init__(f"unknown rule code: {_one_line(code)}")
-
-
-def _one_line(value: str) -> str:
-    """Escape control characters so one failure stays on one stderr line."""
-    return value.encode("unicode_escape").decode("ascii")
+        super().__init__(f"unknown rule code: {code}")
 
 
 @dc.dataclass(frozen=True, slots=True)

@@ -268,6 +268,20 @@ def test_unknown_code_reports_on_stderr_and_leaves_stdout_empty(
     )
 
 
+def test_unknown_code_control_characters_stay_on_one_line() -> None:
+    """The command escapes a newline so one failure cannot become two lines.
+
+    The catalogue keeps the raw code, so this adapter is where the one-line
+    guarantee is established and therefore where it is asserted.
+    """
+    status, output, error = detail_result("BAD\nCODE")
+
+    assert status == 2, "expected the documented operational-failure status"
+    assert not output, "expected no result for a miss"
+    assert error.count("\n") == 1, "expected exactly one stderr line"
+    assert "BAD\\nCODE" in error, "expected the newline to be escaped"
+
+
 def test_json_list_envelope_and_descriptor_shape() -> None:
     """The list envelope is schema version 1 with complete typed descriptors."""
     status, output, error = list_result(output_format="json")

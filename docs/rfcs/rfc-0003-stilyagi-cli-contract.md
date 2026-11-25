@@ -123,13 +123,14 @@ SHALL accept `all`, `yes`, and `no`, with `all` as the default.
 
 The command SHALL support both human-readable text and JavaScript Object
 Notation (JSON) output through `--output-format text|json`, defaulting to text.
-An empty result SHALL exit `0` and state that no builtin rules match. JSON
-output SHALL use a schema-versioned envelope:
-`{"schema_version": 1, "rules": […]}` for the list and
-`{"schema_version": 1, "rule": {…}}` for one rule. Each descriptor SHALL carry
-the same fields in both commands. The list describes the shipped inventory, not
-effective enablement for a file, and SHALL NOT read project configuration or
-extract a document.
+An empty result SHALL exit `0`. Text output SHALL state that no builtin rules
+match; JSON output SHALL keep its envelope and carry an empty `rules` array, so
+a machine-readable consumer never receives prose in place of JSON. JSON output
+SHALL use a schema-versioned envelope: `{"schema_version": 1, "rules": […]}`
+for the list and `{"schema_version": 1, "rule": {…}}` for one rule. Each
+descriptor SHALL carry the same fields in both commands. The list describes the
+shipped inventory, not effective enablement for a file, and SHALL NOT read
+project configuration or extract a document.
 
 ### 3.4 `stilyagi config [KEY]`
 

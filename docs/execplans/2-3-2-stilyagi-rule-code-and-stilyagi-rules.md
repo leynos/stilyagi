@@ -665,6 +665,16 @@ inspect STY001 and observe that its fix requires unsafe opt-in. All examples
 must be executable, with the expected exit codes documented alongside them. E6
 is the sequential full-gate record at each implementation milestone.
 
+E6 is an acceptance requirement, not a formality. The final candidate must pass
+`make test` with the repository's own settings, unmodified, and exit `0`; only
+then may the plan be marked complete and the roadmap item checked. An earlier
+pass at a different commit is historical evidence for that commit and does not
+satisfy E6 for later commits. Running the gate and reporting a non-zero result
+is not acceptance. If the gate cannot pass because of a host-level condition
+outside the repository, record the impasse and leave both the plan and the
+roadmap incomplete; do not relax the budgets, edit another component's tests,
+or substitute a hosted workflow for the required local run.
+
 Assumptions are the documented argparse exit-2 contract, standard JSON scalar
 semantics, the existing TOML/config parser interface, the real engine's
 source-backed rule interface, and console-script packaging. Exercise these

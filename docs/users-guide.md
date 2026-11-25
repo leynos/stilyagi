@@ -902,7 +902,10 @@ prefix; `--pack` matches an exact pack name; `--severity` accepts `error`,
 `warning`, or `info`; `--preview` and `--fixable` accept `all` (the default),
 `yes`, or `no`. An unknown prefix or pack is an empty result, not an error. A
 repeated single-valued filter uses its last value. The command exits `0` even
-when nothing matches, printing `No builtin rules match the supplied filters.`.
+when nothing matches. Text output then prints
+`No builtin rules match the supplied filters.`; JSON output keeps its envelope
+and reports `{"schema_version": 1, "rules": []}`, so a consumer parsing the
+machine-readable form never has to special-case prose.
 
 The list describes the shipped inventory, not the effective configuration of a
 particular file. A listed rule may still be unselected, ignored, suppressed, or

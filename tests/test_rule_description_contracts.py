@@ -252,56 +252,9 @@ def test_example_preserves_authored_order_and_codes() -> None:
         "expected the observed code order to be preserved"
     )
     assert not example.configuration, "expected an empty configuration to stay empty"
-    assert example.exit_code == 0, "expected the default exit status to be clean"
-    assert type(example.exit_code) is int, "expected the default status to be an int"
-
-
-class _IntSubclass(int):
-    """An integer subclass that must not pass the exact type check."""
-
-
-@pytest.mark.parametrize(
-    ("changes", "error", "match"),
-    [
-        pytest.param(
-            {"exit_code": True},
-            TypeError,
-            "must be an integer",
-            id="boolean-is-not-an-int",
-        ),
-        pytest.param(
-            {"exit_code": 1.0},
-            TypeError,
-            "must be an integer",
-            id="float-is-not-an-int",
-        ),
-        pytest.param(
-            {"exit_code": _IntSubclass(1)},
-            TypeError,
-            "must be an integer",
-            id="int-subclass-is-not-an-int",
-        ),
-        pytest.param(
-            {"exit_code": 2},
-            ValueError,
-            "must be 0 or 1",
-            id="outside-the-policy",
-        ),
-    ],
-)
-def test_example_rejects_a_non_integer_or_out_of_policy_exit_code(
-    changes: dict[str, object],
-    error: type[Exception],
-    match: str,
-) -> None:
-    """A status a renderer could publish with the wrong JSON type is rejected.
-
-    `True` and `1.0` compare equal to `1`, so an equality check alone would
-    admit them and emit a JSON boolean or float where the schema promises an
-    integer.
-    """
-    with pytest.raises(error, match=match):
-        dc.replace(_example(), **changes)
+    assert not hasattr(example, "exit_code"), (
+        "expected the domain record to carry no check-policy status"
+    )
 
 
 @pytest.mark.parametrize(

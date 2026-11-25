@@ -167,48 +167,16 @@ class RuleExample:
         Complete TOML that selects and configures the rule, or an empty string
         when the default configuration demonstrates the behaviour.
     expected_codes:
-        Diagnostic codes the example produces, in observed order.
-    exit_code:
-        The check exit status the example documents: ``1`` when an
-        error-severity diagnostic is produced, otherwise ``0``. It is authored
-        because a warning-only example is not a failing check, and a rendering
-        adapter has no severity policy of its own.
+        Diagnostic codes the example produces, in observed order. The exit
+        status an example documents is derived from these codes and their
+        severities by the presenting adapter, so this record carries no check
+        policy of its own.
     """
 
     title: str
     source: str
     configuration: str = ""
     expected_codes: tuple[str, ...] = ()
-    exit_code: int = 0
-
-    def __post_init__(self) -> None:
-        """Reject an exit code that is not an integer 0 or 1."""
-        _require_exit_code(self.exit_code)
-
-
-def _require_exit_code(exit_code: int) -> None:
-    """Reject a non-integer or out-of-policy example exit status.
-
-    Equality alone is not enough: ``True`` and ``1.0`` both compare equal to
-    ``1``, and a renderer would then publish a JSON boolean or a float where
-    the schema promises an integer. The type test is exact rather than an
-    ``isinstance`` check because a subclass can override comparison or
-    serialization, and only a plain integer serializes as the JSON schema
-    promises.
-
-    Raises
-    ------
-    TypeError
-        When the value is not exactly a built-in ``int``.
-    ValueError
-        When the integer falls outside the ``0``/``1`` exit policy.
-    """
-    if type(exit_code) is not int:
-        message = "example exit_code must be an integer"
-        raise TypeError(message)
-    if exit_code not in {0, 1}:
-        message = "example exit_code must be 0 or 1"
-        raise ValueError(message)
 
 
 def _require_capabilities(requires: tuple[str, ...]) -> None:

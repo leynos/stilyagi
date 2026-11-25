@@ -101,10 +101,13 @@ def run_rule_detail(
     try:
         rule = catalogue.get_rule(options.code)
     except catalogue.RuleNotFoundError as exc:
+        # The domain error keeps the raw code, so the one-line guarantee is
+        # this adapter's responsibility rather than the catalogue's.
+        escaped = cli_command_shell.escape_control_characters(exc.code)
         return cli_command_shell.write_command_failure(
             streams.error,
             command="rule",
-            failure=exc,
+            failure=f"unknown rule code: {escaped}",
         )
     streams.output.write(render_rule_detail(rule, options.output_format))
     return 0

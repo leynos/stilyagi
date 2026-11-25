@@ -12,6 +12,9 @@ guessing. Every successful rendering ends in exactly one newline.
 import json
 import typing as typ
 
+from stilyagi.check_outcome import compute_exit_code
+from stilyagi.diagnostics import Diagnostic, Severity
+
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
@@ -30,7 +33,12 @@ _OUTPUT_FORMATS: typ.Final[frozenset[str]] = frozenset({"text", "json"})
 _LIST_COLUMNS = ("CODE", "NAME", "SEVERITY", "FIX-MODE", "DEFAULT", "PREVIEW")
 _COLUMN_GAP = "  "
 
-__all__ = ["SCHEMA_VERSION", "render_rule_detail", "render_rule_list"]
+__all__ = [
+    "SCHEMA_VERSION",
+    "example_exit_code",
+    "render_rule_detail",
+    "render_rule_list",
+]
 
 
 def render_rule_list(
@@ -247,9 +255,72 @@ def _one_example_lines(example: RuleExample) -> list[str]:
     lines.extend(_indented(configuration, "    "))
     lines.extend((
         f"  expected codes: {codes}",
-        f"  expected exit status: {example.exit_code}",
+        f"  expected exit status: {example_exit_code(example)}",
     ))
     return lines
+
+
+def example_exit_code(example: RuleExample) -> int:
+    r"""Derive an example's documented check status from the catalogue policy.
+
+    The status is what `stilyagi check` would return for the diagnostics the
+    example reports, so it comes from the same exit policy rather than a value
+    authored alongside the domain record. An example that reports no codes
+    produces no diagnostics, and one that reports codes produces diagnostics
+    whose severities the catalogue already declares.
+
+    Parameters
+    ----------
+    example:
+        The example whose status is derived.
+
+    Returns
+    -------
+    int
+        ``1`` when an error-severity diagnostic is produced, otherwise ``0``.
+
+    Examples
+    --------
+    >>> from stilyagi.rules.description import RuleExample
+    >>> example_exit_code(RuleExample(title="clean", source="text\n"))
+    0
+    >>> example_exit_code(
+    ...     RuleExample(
+    ...         title="finding",
+    ...         source="# A\n### B\n",
+    ...         expected_codes=("MD001",),
+    ...     )
+    ... )
+    1
+    """
+    return compute_exit_code(_example_diagnostics(example))
+
+
+def _example_diagnostics(example: RuleExample) -> tuple[Diagnostic, ...]:
+    """Build the diagnostics an example's expected codes stand for.
+
+    A code's severity is looked up in the shipped inventory, so the derived
+    status follows the same metadata the contract tests assert. A code the
+    inventory does not declare is treated as an error, which is the policy's
+    own default for an unclassified diagnostic.
+
+    Returns
+    -------
+    tuple[Diagnostic, ...]
+        One diagnostic per expected code, in the example's authored order.
+    """
+    from stilyagi.rules.catalogue import list_rules
+
+    severity_of = {rule.code: Severity(rule.default_severity) for rule in list_rules()}
+    return tuple(
+        Diagnostic(
+            path="example.md",
+            code=code,
+            message="",
+            severity=severity_of.get(code, Severity.ERROR),
+        )
+        for code in example.expected_codes
+    )
 
 
 def _indented(lines: cabc.Sequence[str], prefix: str) -> list[str]:
@@ -294,7 +365,7 @@ def _descriptor(rule: RuleMetadata) -> dict[str, object]:
                 "source": example.source,
                 "configuration": example.configuration,
                 "expected_codes": list(example.expected_codes),
-                "exit_code": example.exit_code,
+                "exit_code": example_exit_code(example),
             }
             for example in description.examples
         ],

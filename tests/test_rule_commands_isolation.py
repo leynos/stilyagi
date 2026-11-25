@@ -93,13 +93,31 @@ def _valid_project(root: pathlib.Path) -> None:
     (root / "stilyagi.toml").write_text("[lint]\n", encoding="utf-8")
 
 
-def _tree_snapshot(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
-    """Return every file under ``root`` keyed by its relative path."""
-    return {
-        path.relative_to(root): path.read_bytes()
-        for path in root.rglob("*")
-        if path.is_file()
-    }
+type TreeEntry = tuple[str, bytes]
+"""One tree entry: its kind and, for a file, the bytes it holds."""
+
+
+def _tree_snapshot(root: pathlib.Path) -> dict[pathlib.Path, TreeEntry]:
+    """Return every file and directory under ``root`` by relative path.
+
+    A file is recorded with its contents and a directory with a `dir` marker,
+    so the comparison detects an empty directory appearing or a file being
+    replaced by a directory of the same name. Recording only files would miss
+    both.
+
+    Returns
+    -------
+    dict[pathlib.Path, TreeEntry]
+        Each relative path mapped to its kind and, for a file, its bytes.
+    """
+    entries: dict[pathlib.Path, TreeEntry] = {}
+    for path in root.rglob("*"):
+        relative = path.relative_to(root)
+        if path.is_dir():
+            entries[relative] = ("dir", b"")
+        elif path.is_file():
+            entries[relative] = ("file", path.read_bytes())
+    return entries
 
 
 def test_rules_command_succeeds_without_any_runtime_boundary(

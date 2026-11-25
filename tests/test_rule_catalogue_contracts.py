@@ -13,7 +13,7 @@ one metadata record would agree with itself no matter what the record said.
 import typing as typ
 
 import pytest
-from stilyagi import config
+from stilyagi import config, rule_rendering
 from stilyagi.check_outcome import compute_exit_code
 from stilyagi.config.rules import Term001Config, parse_term001
 from stilyagi.rules import catalogue
@@ -68,10 +68,11 @@ def test_documented_example_produces_its_expected_codes(
     assert tuple(finding.code for finding in produced) == example.expected_codes, (
         f"expected {rule.code}'s documented example to produce its stated codes"
     )
-    assert type(example.exit_code) is int, (
-        "expected the authored exit status to be an integer, not a bool or float"
+    derived = rule_rendering.example_exit_code(example)
+    assert type(derived) is int, (
+        "expected the derived exit status to be an integer, not a bool or float"
     )
-    assert compute_exit_code(produced) == example.exit_code, (
+    assert compute_exit_code(produced) == derived, (
         "expected the documented exit status to follow the real severity policy"
     )
 
