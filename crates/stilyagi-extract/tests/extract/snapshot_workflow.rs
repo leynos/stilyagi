@@ -1,0 +1,310 @@
+//! End-to-end coverage for the snapshot review workflow.
+//!
+//! `make update-snapshots` is deliberately absent from `test` and CI, so the
+//! workflow it drives has three observable facts that must hold: a mismatch
+//! fails without rewriting the committed snapshot, running insta in update
+//! mode regenerates that snapshot, and the next ordinary run passes.
+//!
+//! The driver test proves all three in a scratch directory unique to this
+//! process under `CARGO_TARGET_TMPDIR`, which it removes when the fixture is
+//! dropped. It runs the probe in a child process of this test binary, in that
+//! directory, rather than nesting a Cargo build, and sets the child's `insta`
+//! environment explicitly. The child therefore runs in exactly the mode the
+//! driver chooses even when the suite itself was started under
+//! `INSTA_UPDATE=always`. That matters: `make update-snapshots` runs this
+//! crate's tests with that variable set, and an in-process probe would silently
+//! take the update path there.
+//!
+//! The target itself is covered with real Cargo by `snapshot_update_e2e`,
+//! which runs the recipe narrowed to its own ignored probes. A text contract on
+//! the Makefile and the hosted workflows then pins where update mode may be
+//! enabled.
+//!
+//! Files are read through `cap_std` directory handles, matching the
+//! capability-oriented filesystem policy the rest of the test estate follows.
+
+use std::{
+    path::PathBuf,
+    process::Output,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use cap_std::{ambient_authority, fs::Dir};
+use rstest::rstest;
+use stilyagi_test_support::repository_root;
+
+use super::test_utils::child_report;
+
+/// Name prefix for the scratch directory the driver owns.
+const SCRATCH_DIR: &str = "snapshot_workflow";
+
+/// Snapshot name used by the isolated workflow probe.
+const PROBE_SNAPSHOT: &str = "workflow_probe";
+
+/// Snapshot file the probe reads inside the scratch directory.
+const PROBE_SNAPSHOT_FILE: &str = "workflow_probe.snap";
+
+/// The value the probe asserts, and the spelling an accepted snapshot holds.
+const ACCEPTED_TEXT: &str = "accepted spelling";
+
+/// The stale value a committed snapshot holds before the mismatch.
+const STALE_TEXT: &str = "stale spelling";
+
+/// The assignment only the local `update-snapshots` recipe may carry.
+const UPDATE_ASSIGNMENT: &str = "INSTA_UPDATE=always";
+
+/// Exact name of the probe test the driver runs in a child process.
+const PROBE_TEST: &str = "snapshot_workflow::probe_asserts_the_accepted_value";
+
+/// The driver's own scratch directory, removed when the fixture is dropped.
+///
+/// The name carries this process's id and a timestamp, so concurrent driver
+/// runs never share a directory: the child probe's working directory is the
+/// only thing telling it where to assert, and a shared name would let a second
+/// driver replace the snapshot a first one is still reading. Owning the
+/// directory as a fixture also removes it whether the driver passed or failed
+/// an assertion, so a failed run leaves no stale snapshot behind.
+struct ScratchSnapshotDir {
+    /// Handle on `CARGO_TARGET_TMPDIR`, used to remove the scratch directory.
+    parent: Dir,
+    /// Unique name of the scratch directory inside `parent`.
+    name: String,
+    /// Handle on the scratch directory itself, for the test's own I/O.
+    directory: Dir,
+}
+
+impl ScratchSnapshotDir {
+    /// Create an empty scratch directory unique to this process.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the target temporary root or the scratch
+    /// directory inside it cannot be created.
+    fn create() -> std::io::Result<Self> {
+        let parent = Dir::open_ambient_dir(env!("CARGO_TARGET_TMPDIR"), ambient_authority())?;
+        let name = unique_scratch_name();
+        parent.create_dir_all(&name)?;
+        let directory = parent.open_dir(&name)?;
+        Ok(Self {
+            parent,
+            name,
+            directory,
+        })
+    }
+
+    /// Return the scratch directory's absolute path.
+    ///
+    /// `insta` resolves its own paths, so the redirect is passed as a path
+    /// rather than as the directory handle used for the test's own reads and
+    /// writes.
+    fn path(&self) -> PathBuf { PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(&self.name) }
+
+    /// Write `contents` to `name` inside the scratch directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the file cannot be written.
+    fn write(&self, name: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        self.directory.write(name, contents)
+    }
+
+    /// Return the text of `name` inside the scratch directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the file cannot be read.
+    fn read_to_string(&self, name: &str) -> std::io::Result<String> {
+        self.directory.read_to_string(name)
+    }
+}
+
+impl Drop for ScratchSnapshotDir {
+    fn drop(&mut self) {
+        // Best effort: a cleanup failure must not mask the driver's own result.
+        let _cleanup = self.parent.remove_dir_all(&self.name);
+    }
+}
+
+/// Return a scratch directory name no other driver run can share.
+fn unique_scratch_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos());
+    format!("{SCRATCH_DIR}-{}-{nanos}", std::process::id())
+}
+
+/// Render a committed snapshot file holding `body` as its value.
+fn committed_snapshot(body: &str) -> String {
+    format!("---\nsource: tests/extract/snapshot_workflow.rs\n---\n{body}\n")
+}
+
+/// Run the ignored probe in a child process, optionally in insta's update mode.
+///
+/// The child's working directory is the scratch snapshot directory, which is
+/// how the probe finds the snapshot to assert against. Its `insta` environment
+/// is set here rather than inherited, so a suite started under
+/// `INSTA_UPDATE=always` cannot turn the mismatch phase into an update, and an
+/// inherited `INSTA_FORCE_PASS` cannot hide a failure.
+fn run_probe(directory: &std::path::Path, update_mode: Option<&str>) -> std::io::Result<Output> {
+    let mut command = std::process::Command::new(std::env::current_exe()?);
+    command
+        .arg("--exact")
+        .arg(PROBE_TEST)
+        .arg("--ignored")
+        .current_dir(directory)
+        .env_remove("INSTA_UPDATE")
+        .env_remove("INSTA_FORCE_PASS")
+        .env_remove("INSTA_OUTPUT");
+    if let Some(mode) = update_mode {
+        command.env("INSTA_UPDATE", mode);
+    }
+    command.output()
+}
+
+/// Assert the probe's value against the snapshot in the working directory.
+///
+/// Ignored so an ordinary suite run never asserts against a snapshot the driver
+/// has not staged; the driver runs it in a child process because `insta`'s
+/// update mode is process-wide, and picks the directory through that child's
+/// working directory.
+#[rstest]
+#[ignore = "the snapshot workflow driver runs this in a child process"]
+fn probe_asserts_the_accepted_value() {
+    let directory = std::env::current_dir().expect("expected the probe working directory");
+    let mut settings = insta::Settings::clone_current();
+    settings.set_snapshot_path(directory);
+    settings.set_prepend_module_to_snapshot(false);
+    settings.bind(|| insta::assert_snapshot!(PROBE_SNAPSHOT, ACCEPTED_TEXT));
+}
+
+/// A mismatch must fail without rewriting the snapshot, insta's update mode
+/// must regenerate it, and the next ordinary run must pass.
+#[rstest]
+fn snapshot_mismatch_fails_until_insta_updates_the_snapshot() {
+    let scratch = ScratchSnapshotDir::create().expect("expected an isolated snapshot directory");
+    scratch
+        .write(PROBE_SNAPSHOT_FILE, committed_snapshot(STALE_TEXT))
+        .expect("expected the stale snapshot to be writable");
+    let directory = scratch.path();
+
+    let mismatch = run_probe(&directory, None).expect("expected the probe to run");
+    assert!(
+        !mismatch.status.success(),
+        "expected the stale snapshot to fail the probe:\n{}",
+        child_report(&mismatch)
+    );
+    assert_eq!(
+        scratch
+            .read_to_string(PROBE_SNAPSHOT_FILE)
+            .expect("expected the snapshot to be readable"),
+        committed_snapshot(STALE_TEXT),
+        "a failed run must leave the committed snapshot untouched"
+    );
+
+    let update = run_probe(&directory, Some("always")).expect("expected the probe to run");
+    assert!(
+        update.status.success(),
+        "expected insta's update mode to accept the new value:\n{}",
+        child_report(&update)
+    );
+    let regenerated = scratch
+        .read_to_string(PROBE_SNAPSHOT_FILE)
+        .expect("expected the updated snapshot to be readable");
+    assert!(
+        regenerated.contains(ACCEPTED_TEXT) && !regenerated.contains(STALE_TEXT),
+        "expected the update run to regenerate the snapshot, got:\n{regenerated}"
+    );
+
+    let accepted = run_probe(&directory, None).expect("expected the probe to run");
+    assert!(
+        accepted.status.success(),
+        "expected the regenerated snapshot to pass every later run:\n{}",
+        child_report(&accepted)
+    );
+}
+
+/// Return whether `name` names a hosted workflow file.
+fn is_workflow_file(name: &str) -> bool {
+    let Some(extension) = std::path::Path::new(name).extension() else {
+        return false;
+    };
+    extension.eq_ignore_ascii_case("yml") || extension.eq_ignore_ascii_case("yaml")
+}
+
+/// Return every hosted workflow file name under `workflows`.
+fn workflow_files(workflows: &Dir) -> std::io::Result<Vec<String>> {
+    let mut names = workflows
+        .read_dir(".")?
+        .map(|entry| {
+            entry.map(|directory_entry| directory_entry.file_name().to_string_lossy().into_owned())
+        })
+        .collect::<std::io::Result<Vec<_>>>()?;
+    names.retain(|name| is_workflow_file(name));
+    names.sort();
+    Ok(names)
+}
+
+/// Return the target whose recipe holds the first line containing `needle`.
+fn enclosing_target<'a>(makefile: &'a str, needle: &str) -> Option<&'a str> {
+    let mut target = None;
+    for line in makefile.lines() {
+        if line.starts_with('\t') {
+            if line.contains(needle) {
+                return target;
+            }
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((head, _)) = line.split_once(':') else {
+            continue;
+        };
+        if !head.contains('=') {
+            target = Some(head.trim());
+        }
+    }
+    None
+}
+
+/// Only the local `update-snapshots` recipe may enable `insta` updates.
+#[rstest]
+fn insta_update_mode_is_confined_to_the_local_recipe() {
+    let repository = Dir::open_ambient_dir(
+        repository_root().expect("expected the repository root"),
+        ambient_authority(),
+    )
+    .expect("expected the repository directory handle");
+    let makefile = repository
+        .read_to_string("Makefile")
+        .expect("expected a readable Makefile");
+
+    assert!(
+        makefile.contains(UPDATE_ASSIGNMENT),
+        "expected update-snapshots to accept snapshots with {UPDATE_ASSIGNMENT}"
+    );
+    assert_eq!(
+        enclosing_target(&makefile, "INSTA_UPDATE"),
+        Some("update-snapshots"),
+        "{UPDATE_ASSIGNMENT} must stay in the local, reviewed recipe"
+    );
+    assert_eq!(
+        makefile.matches("INSTA_UPDATE").count(),
+        1,
+        "no other Makefile recipe may enable insta updates"
+    );
+
+    let workflows = repository
+        .open_dir(".github/workflows")
+        .expect("expected the hosted workflow directory");
+    for name in workflow_files(&workflows).expect("expected the hosted workflow files") {
+        let contents = workflows
+            .read_to_string(&name)
+            .expect("expected a readable hosted workflow file");
+        assert!(
+            !contents.contains("INSTA_UPDATE="),
+            ".github/workflows/{name} must not enable insta updates, so a mismatch fails the run"
+        );
+    }
+}

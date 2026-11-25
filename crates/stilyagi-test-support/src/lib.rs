@@ -3,10 +3,14 @@
 //! [`corpus_fixture_path`], [`read_corpus_fixture`], [`fixture_paths_in`],
 //! [`golden_markdown_ir_fixture`], [`golden_python_ir_fixture`],
 //! [`apply_round_trip_edits`], and [`SHARED_MARKDOWN_FIXTURE_PATH`].
+//!
+//! [`snapshot_update`] carries the constants shared by the
+//! `make update-snapshots` end-to-end test and the ignored probes it runs.
 
 mod golden_fixture_builder;
 mod golden_ir;
 mod round_trip_edits;
+pub mod snapshot_update;
 
 pub use golden_fixture_builder::{
     GoldenPythonFixtureError,

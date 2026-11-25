@@ -117,6 +117,10 @@ TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.git/*' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './.vtcode/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
+# Extra `cargo test` arguments for `update-snapshots`. Empty in normal use; the
+# snapshot-update end-to-end test narrows the run to its ignored probes so the
+# target cannot recurse into the test that drives it.
+SNAPSHOT_UPDATE_ARGS ?=
 # Modules whose docstring examples are executed. The library and the test
 # support package both document helpers with examples, and an example nothing
 # runs is prose that can go untrue. tests/test_doctest_collection.py fails when
@@ -129,7 +133,8 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
         typecheck tools skylos skylos-allow \
         duplication duplication-allow \
         tools-check tools-docs tools-lint install-build-tools check-build-tools \
-        release release-artefact smoke smoke-release test-workflow-contracts
+        release release-artefact smoke smoke-release test-workflow-contracts \
+        update-snapshots
 
 .DEFAULT_GOAL := all
 
@@ -341,6 +346,15 @@ test-ci: check-build-tools build tools-lint ## Run Rust tests with the CI nextes
 
 test-quick: check-build-tools build tools-lint ## Run Rust library tests only with nextest
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
+
+# Rewrite insta snapshots for the crates that pin Display spellings and bridge
+# payload shapes. Deliberately absent from `test` and CI: a mismatch there must
+# fail, never silently accept the new value. Locally insta writes a `.snap.new`
+# file to review; under CI it writes none, so read the assertion diff from the
+# failing test's log instead.
+# See "Snapshot and round-trip helper workflow" in docs/developers-guide.md.
+update-snapshots: ## Regenerate insta snapshots for review
+	INSTA_UPDATE=always $(CARGO_BUILD_ENV) $(CARGO) test -p stilyagi-extract -p stilyagi-pyext $(SNAPSHOT_UPDATE_ARGS)
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

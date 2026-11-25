@@ -296,4 +296,6 @@ fn extract_document_from_ir<E>(
 }
 
 #[cfg(test)]
+mod snapshot_update_probe_tests;
+#[cfg(test)]
 mod tests;

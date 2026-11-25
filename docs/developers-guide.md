@@ -355,16 +355,138 @@ capability-oriented path.
 Golden IR scaffolding is intentionally internal while the public pytest plugin
 from RFC 0004 remains future work. Rust snapshot tests use `insta` and write
 snapshot files next to the owning test module, for example under
-`crates/stilyagi-extract/tests/snapshots/` or
-`crates/stilyagi-test-support/tests/snapshots/`. Python snapshot tests use
-`syrupy` and write JSON snapshots under `tests/__snapshots__/`. Markdown,
-Python docstring, and Rust doc-comment golden helpers all follow the same
-canonical IR contract. Update snapshots only when the reviewed contract changes:
+`crates/stilyagi-extract/tests/extract/snapshots/` or
+`crates/stilyagi-test-support/tests/snapshots/`; inline module tests write to
+`src/snapshots/` beside the module. Python snapshot tests use `syrupy` and
+write JSON snapshots under `tests/__snapshots__/`. Markdown, Python docstring,
+and Rust doc-comment golden helpers all follow the same canonical IR contract.
+
+Three contracts are pinned by `insta` snapshots:
+
+- **`Display` output** for the extraction vocabulary. The spelling a Python
+  caller receives from the bridge is the contract, so
+  `crates/stilyagi-extract/tests/extract/spelling_display.rs` snapshots each
+  `ExtractSyntax` and `RegionKind` spelling. A semantic `assert_eq!` with a
+  diagnostic message stays beside each snapshot: the snapshot pins the text,
+  and the assertion keeps the round-trip and agreement contracts readable when
+  one fails.
+- **`PyO3` payload shape**. The bridge returns `PyDict` values, whose `repr()`
+  is interpreter-dependent and can embed addresses. Tests therefore project the
+  payload into a canonical `serde_json::Value` (`document_payload` and
+  `document_payload_with_ir` in `crates/stilyagi-pyext/src/tests/mod.rs`) and
+  snapshot that with `assert_json_snapshot!`. The projection drops the
+  canonical IR JSON unless the test is specifically pinning the whole bridge
+  document; the golden IR snapshots already cover its contents. The
+  whole-document snapshot redacts the document content hash and the producer
+  version, which belong to the IR contract and would otherwise churn the bridge
+  snapshot on a dependency bump.
+- **Primitive typing**. The same projection keeps each value's JSON type and
+  panics on a type it does not model, so a bridge field that changes from an
+  integer to a string cannot pass its snapshot unnoticed. A `proptest` in
+  `crates/stilyagi-pyext/src/tests/projection.rs` generates nested payloads
+  from strings, booleans, `i64` integers, and lists of dictionaries and asserts
+  that `dictionary_json` returns the value it was given, which covers type
+  preservation beyond the literals the named tests happen to use. A companion
+  `#[should_panic]` case pins that an unsupported type, such as a float, fails
+  the projection instead of being stringified.
+
+Update snapshots only when the reviewed contract changes. The `make` target
+runs the same two crates as a single step:
 
 ```bash
-INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilyagi-extract
+make update-snapshots
+# equivalent to:
+INSTA_UPDATE=always cargo test -p stilyagi-extract -p stilyagi-pyext
+```
+
+The recipe appends `SNAPSHOT_UPDATE_ARGS` to that Cargo command; it is empty in
+normal use. The target's end-to-end test
+(`crates/stilyagi-extract/tests/extract/snapshot_update_e2e.rs`) sets it to
+`--lib -- --ignored snapshot_update_probe`, so the test can drive the real
+recipe without re-entering the suite that invoked it. The test stages a stale
+snapshot for both crates, checks that an ordinary run fails, runs the target,
+and checks that each staged snapshot was rewritten and that the next ordinary
+run passes.
+
+Each crate carries one ignored lib probe that asserts a fixed value against a
+staged file, and `stilyagi-test-support::snapshot_update` holds the names both
+sides use. The staged root is the untracked `target/tmp/snapshot_update_e2e`
+directory, derived from the fixture crate's compiled-in manifest directory
+rather than from the process environment, so no tracked snapshot is touched and
+the probes need no environment seam. A developer's real `make update-snapshots`
+also runs this test; its nested run is narrowed to the probes and completes
+harmlessly beside it.
+
+Because the probes resolve one compiled-in root, the end-to-end driver takes an
+exclusive cross-process lock on `target/tmp/snapshot_update_e2e.lock` before it
+resets and stages the root. It holds that lock through the mismatch run, the
+target run, and its final read, removes the staged tree, and only then releases
+the lock. A second driver that starts meanwhile polls the lock for up to ten
+minutes and then runs against a tree it stages itself, so two concurrent suite
+invocations cannot restage the root under each other's assertions. The driver
+is Unix-only, because it drives `make` and its guard is a POSIX advisory lock,
+so the integration-test root declares its module under `cfg(unix)`. The unit
+driver in `snapshot_workflow.rs` needs no such lock: it owns a scratch
+directory named from its process id and a nanosecond timestamp, keeps it alive
+across all three child runs, and removes it when the fixture is dropped, so a
+failed assertion still cleans up.
+
+Python snapshots are regenerated separately:
+
+```bash
 .venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
 ```
+
+CI sets no `INSTA_UPDATE`, so a mismatch fails the run. Locally, insta's default
+`auto` mode writes a `.snap.new` file beside the committed snapshot when a
+value changes, and that file is the diff to review. Under CI, insta detects the
+`CI` environment variable and resolves `auto` to no-update: the run still
+fails, but no `.snap.new` file is written, so read the assertion diff from the
+test log. Accepting a snapshot is always a local, reviewed act: inspect the
+diff, then commit the regenerated `.snap`. Never set `INSTA_UPDATE=always` in
+CI — that would let a changed contract pass unnoticed.
+
+##### Redacting nondeterministic fields
+
+A snapshot of an object carrying an address, a temporary path, a timestamp, or
+another environment-dependent value churns on every run. Redact such fields
+rather than deleting the surrounding assertion. Redaction is implemented by
+`insta`'s `redactions` feature and applies to the serialization-based macros
+(`assert_json_snapshot!`, `assert_yaml_snapshot!`, and the other serde formats);
+`assert_snapshot!` and `assert_debug_snapshot!` render a value directly and
+cannot redact, so project the value first when redaction is required.
+
+```rust
+insta::assert_json_snapshot!(
+    "bridge_payload",
+    payload,
+    { ".address" => "[REDACTED]", ".path" => "[REDACTED]" }
+);
+```
+
+Selectors are dotted paths into the serialized value. A `.key` segment names a
+field, `.*` matches every child at one level, and `**` matches recursively.
+Subscripts address array items: `[0]` matches one index, `[1:3]` a half-open
+range, and `[]` matches every item in the array rather than the array itself,
+so the array keeps its shape and length in the snapshot. Prefer a stable
+projection (the `document_payload` helpers above) over redaction where the
+field is not part of the contract, and use redaction when the field must stay
+visible in the snapshot's shape.
+
+##### Adding a display variant
+
+1. Add the variant to `ExtractSyntax` or `RegionKind`.
+2. Add a case to the relevant `#[rstest]` table in
+   `crates/stilyagi-extract/tests/extract/spelling_display.rs`. Each case is a
+   `SpellingContract` carrying the variant, its `as_str` snapshot name, its
+   `Display` snapshot name, and the expected spelling, so one case pins both
+   contracts for that variant. Keep the spelling itself as the value under
+   test. Do not derive either name from `as_str()`: two variants that collided
+   would then read one snapshot and both pass.
+3. Run `make update-snapshots`; a new `.snap` file appears beside the test
+   module.
+4. Inspect the generated file, confirm the spelling is what the bridge should
+   expose, and commit it with the code change.
 
 The golden IR helper scope currently covers Markdown and Python docstrings.
 Markdown helper output records the repository-relative fixture path, syntax,
@@ -809,6 +931,42 @@ new counter joins the group it belongs to rather than growing one long setter.
 Likewise `list_child_node_ids` and `table_child_node_ids` in
 `crates/stilyagi-markdown/src/builder.rs` are private to `child_node_ids`,
 which dispatches to them by node kind.
+
+#### Serializing metrics-sensitive tests
+
+`check_metrics/mod.rs` also owns the test-only `CHECK_METRICS_TEST_LOCK` mutex
+and the `with_metrics_test_lock` helper. Extraction records into process-global
+atomic counters, and a metrics snapshot test resets those counters and then
+reads them back. An extraction that ran inside that window would be counted by
+the snapshot test, so every test that extracts a document through the `PyO3`
+bridge takes the lock around the extraction call itself, and the metrics
+snapshot tests take the same lock across their reset-seed-read window. The
+extraction side holds the lock no longer than that call: the returned document
+is inert data, so asserting over it or snapshotting it records no further
+metric, and serializing those reads would slow the suite without protecting
+anything. A test that needs Python again after the call re-attaches; a
+`Py<PyDict>` can outlive the attachment that created it. Both sides share one
+lock because they share the counters: a lock per test module, or per crate,
+would leave the interleaving it exists to prevent.
+
+The lock is acquired **before** Python is attached, never inside an active
+`Python::attach` closure. Every extraction helper already holds the lock and
+then waits for the interpreter, so a test that attached first and then waited
+for the lock would invert that order: two tests then hold one resource each and
+wait for the other for ever. A test that only re-reads the returned payload
+after the call attaches Python without the lock, which cannot invert anything.
+
+The rule is uniform even though Markdown extraction records no extraction
+metric. A test does not have to know which syntaxes currently record, and one
+lock acquisition per extraction is cheap next to the risk of a syntax gaining a
+counter later.
+
+The helper recovers a poisoned lock with `PoisonError::into_inner` rather than
+propagating the poison. A panicking test therefore fails only itself; later
+tests that need the lock still run, and the next metrics snapshot test resets
+the counters it is about to read. Every lock user goes through the helper,
+including `check_metrics/recorder_tests.rs`, so the poison policy stays in one
+place.
 
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the

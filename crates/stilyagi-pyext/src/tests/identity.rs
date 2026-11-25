@@ -8,6 +8,7 @@ use rstest::rstest;
 use serde_json::Value;
 
 use super::{BridgeExtractRequest, bridge_extract_document, extract_document_py};
+use crate::check_metrics::with_metrics_test_lock;
 
 #[rstest]
 #[case("docs/guide.md")]
@@ -45,9 +46,11 @@ fn bridge_keeps_two_argument_calls_anonymous() {
 
 #[rstest]
 fn bridge_accepts_explicit_none_as_anonymous_identity() {
-    let payload = Python::attach(|py| {
-        let args = PyTuple::new(py, [Some("# Heading"), Some("markdown"), None::<&str>])?;
-        extract_document_py(py, &args)
+    let payload = with_metrics_test_lock(|| {
+        Python::attach(|py| {
+            let args = PyTuple::new(py, [Some("# Heading"), Some("markdown"), None::<&str>])?;
+            extract_document_py(py, &args)
+        })
     })
     .expect("expected an explicit None source path to preserve anonymous identity");
     let ir_json = canonical_ir_json(&payload);
