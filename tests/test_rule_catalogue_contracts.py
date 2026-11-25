@@ -13,7 +13,7 @@ one metadata record would agree with itself no matter what the record said.
 import typing as typ
 
 import pytest
-from stilyagi import config, model, rule_rendering
+from stilyagi import config, rule_rendering
 from stilyagi.check_outcome import compute_exit_code
 from stilyagi.config.rules import Term001Config, parse_term001
 from stilyagi.rules import catalogue
@@ -49,11 +49,6 @@ def _example_id(item: tuple[RuleMetadata, RuleExample]) -> str:
     return f"{rule.code}:{example.title}"
 
 
-def _example_syntax(rule: RuleMetadata) -> model.Syntax:
-    """Return the syntax an example's source must be extracted as."""
-    return example_syntax(rule)
-
-
 @pytest.mark.parametrize("item", _documented_examples(), ids=_example_id)
 def test_documented_example_produces_its_expected_codes(
     item: tuple[RuleMetadata, RuleExample],
@@ -72,7 +67,7 @@ def test_documented_example_produces_its_expected_codes(
         else config.StilyagiConfig()
     )
 
-    produced = lint(effective, example.source, _example_syntax(rule))
+    produced = lint(effective, example.source, example_syntax(rule))
 
     assert tuple(finding.code for finding in produced) == example.expected_codes, (
         f"expected {rule.code}'s documented example to produce its stated codes"
@@ -127,7 +122,7 @@ def test_published_configuration_lints_its_rule(
     )
     assert reporting_example is not None, f"expected {rule.code} to document a finding"
 
-    produced = lint(effective, reporting_example.source, _example_syntax(rule))
+    produced = lint(effective, reporting_example.source, example_syntax(rule))
 
     assert rule.code in {item.code for item in produced}, (
         "expected the published TOML to enable the rule it documents"
@@ -177,7 +172,7 @@ def _reports_under_default_config(rule: RuleMetadata) -> bool:
     produced = lint(
         config.StilyagiConfig(),
         reporting.source,
-        _example_syntax(rule),
+        example_syntax(rule),
     )
     return rule.code in {item.code for item in produced}
 
