@@ -255,6 +255,20 @@ before continuing.
   The full Python suite at the merge is 2054 passed with the same five
   queue-bound `test_lint_policy_behaviour.py` scratch-crate failures recorded
   above.
+- [x] (2026-11-25) Second formal review, three inline findings and two failed
+  pre-merge checks, all repaired. The substantive finding was a rendering
+  defect the review caught: `_append_section` re-split each rendered entry, and
+  `str.splitlines()` on an empty entry returns no lines, so a documented blank
+  separator was silently dropped from every source snippet and TOML block. The
+  renderer now keeps empty entries, the six affected snapshots were
+  regenerated, and a regression test pins both the snippet separator and the
+  TOML table separator. Also: `inventory()` rejects a duplicate rule code; the
+  users' guide's three new fences carry `tested-example` markers and are
+  exercised through a new shared loader, `tests/support/tested_examples.py`,
+  which rejects an unclosed fence, an orphan marker, and a duplicate marker;
+  and the developers' guide now documents dispatch routing, the shared argparse
+  builders, the import probe, and the two gate exceptions. The loader was split
+  after CodeScene flagged its first version as too complex.
 - [x] (2026-11-24) Sixth assessment: a protected module importing another
   protected module disarmed the outer module's call trace. The cause is that
   `sys.settrace` returns `None` on CPython 3.14 even while a trace function is
