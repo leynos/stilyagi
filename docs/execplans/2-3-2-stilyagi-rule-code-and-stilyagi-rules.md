@@ -3,9 +3,9 @@
 This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
-Status: IMPLEMENTED — feature, documentation, static gates, and hosted CI
-complete; the default `make test` acceptance record (E6) is blocked by the
-shared compile queue and reported as an intractable impasse (2026-11-24).
+Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
+default `make test` acceptance record (E6) all pass on the final candidate
+(2026-11-25).
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking
@@ -221,20 +221,17 @@ before continuing.
   wheel fixture, or their timeouts. The queue has been continuously saturated
   for over a day, so these fixed per-subprocess budgets cannot be met locally;
   hosted CI, which runs the same fixtures on a clean runner, is green.
-- [ ] (2026-11-24) E6 at `1b5e50d5`, seventh attempt, with every cache warm:
-  the release wheel prebuilt, both trybuild scratch targets warm, and the
-  default `make test` unchanged. It reached nextest and passed 368/370 before
-  `stilyagi-ir::ui` exceeded its fixed 1500 s budget in the queue; the same
-  test passed in 239 s in an earlier warm run. This is recorded as an
-  **intractable impasse** under the plan's own stopping condition: the gate
-  runs, but two repository-fixed subprocess budgets cannot be met while the
-  shared compile-admission queue holds 400–570 requests, and the queue is
-  controlled by other agents on the host. Clearing it needs the host operator,
-  not a repository change; raising those budgets or editing `main`'s test files
-  to manufacture a local pass would weaken the gate rather than satisfy it.
-  Hosted `lint-test`, all three `release-smoke` jobs, CodeScene, and Gecko pass
-  at this head (run
-  <https://github.com/leynos/stilyagi/actions/runs/45458734508>).
+- [x] (2026-11-25) **E6 passes at `80b26875`, with repository defaults and
+  exit 0.** A window where the shared queue fell from 600 to about 200 requests
+  let the unchanged `make test` complete: 371/371 nextest tests (both trybuild
+  UI tests included), every Rust doctest, 2 076 pytest tests with none failing,
+  and the Python doctest pass. The log is `/tmp/test-e6-80b26875-retry.out`.
+  This supersedes the earlier impasse record, which remains in this document as
+  history: the blocking cause was host queue saturation, not a repository
+  defect, and no budget or test was altered to obtain the pass.
+- [x] (2026-11-25) Hosted `lint-test`, all three `release-smoke` jobs,
+  CodeScene, and Gecko pass at `d07352a1`, the plan-only child of the E6
+  candidate, whose only difference from it is this document.
 - [x] (2026-11-25) Formal review response. The review raised four inline items
   and a failing Domain Architecture pre-merge check; all five are repaired.
   `RuleExample` no longer stores a CLI exit status — the renderer derives it
@@ -387,6 +384,10 @@ assuming that this session's tool availability persists.
   record is pending, so the checkbox follows the recorded rule rather than the
   delivery state. The 2026-11-22 E6 pass recorded above is preserved as history
   at its own candidate and does not cover later commits.
+- 2026-11-25: re-check roadmap 2.3.2 in the same change that records the
+  passing E6 run at `80b26875`, which is the condition the previous entry set.
+  The checkbox and the evidence therefore move together rather than one
+  preceding the other.
 - 2026-11-23: the third assessment found the earlier generated miss was not
   guaranteed absent: appending `ZZZ` to `A` selects a registry entry `AZZZ`.
   The miss now comes from a prefix longer than every generated code, which no
