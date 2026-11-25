@@ -177,11 +177,20 @@ def _append_section(
     heading: str,
     body: cabc.Sequence[str],
 ) -> None:
-    """Append one labelled section, rendering an empty body as ``None``."""
+    """Append one labelled section, rendering an empty body as ``None``.
+
+    A body is a sequence of entries, and an entry may itself be several lines
+    (a source snippet, a TOML table). Each entry's lines are indented and kept
+    as they are, including a blank line *inside* an entry. Splitting an empty
+    entry with `str.splitlines` would yield no lines at all and silently drop
+    a separator the entry deliberately contains, so the split is only applied
+    to a non-empty entry.
+    """
     lines.extend(("", f"{heading}:"))
     entries = body or ["None"]
     for entry in entries:
-        lines.extend(_indented(entry.splitlines(), "  "))
+        entry_lines = entry.splitlines() if entry else [""]
+        lines.extend(_indented(entry_lines, "  "))
 
 
 def _target_lines(target: RegionTarget) -> list[str]:

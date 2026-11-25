@@ -186,17 +186,33 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
 def inventory() -> tuple[RuleMetadata, ...]:
     """Return the builtin rule metadata in deterministic order.
 
+    The catalogue's exact-code lookup promises one descriptor per code, so
+    uniqueness is checked here rather than assumed. A duplicated declaration
+    would otherwise make `get_rule` return an arbitrary member of the pair
+    while its docstring still claimed a single rule.
+
     Returns
     -------
     tuple[RuleMetadata, ...]
         Builtin metadata, ordered by code prefix then code.
+
+    Raises
+    ------
+    ValueError
+        Two builtin rules declare the same code.
 
     Examples
     --------
     >>> [metadata.code for metadata in inventory()]
     ['MD001', 'STY001', 'TERM001', 'DOC001', 'DOC002', 'DOC003']
     """
-    return tuple(rule.metadata for rule in _BUILTIN_RULES)
+    metadata = tuple(rule.metadata for rule in _BUILTIN_RULES)
+    codes = [item.code for item in metadata]
+    if len(codes) != len(set(codes)):
+        duplicate = next(code for code in codes if codes.count(code) > 1)
+        message = f"duplicate builtin rule code: {duplicate}"
+        raise ValueError(message)
+    return metadata
 
 
 def enabled_codes() -> tuple[str, ...]:

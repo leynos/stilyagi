@@ -458,11 +458,25 @@ parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, collaborators=None)`.
 
-The `check` and `config` parsers share builders for output-format and isolated
-options. Keep the argument shape and validation in those builders; each command
-supplies only the help text that describes its target. `cli_config_command.py`,
-`cli_dump_ir.py`, and `cli_clean.py` own the command-specific coordination for
-configuration inspection, canonical IR output, and owned-cache cleanup.
+Not every command reaches `CheckOptions`. `main()` routes `config`, `dump-ir`,
+`clean`, `rule`, and `rules` through `_dispatch_command` before it builds
+`CheckOptions`; only `check`, the default command, falls through to the check
+pipeline. Parser construction is split by command: `cli_args.build_parser()`
+assembles the top-level parser and the `check` options, `cli_dump_ir_args.py`
+owns `dump-ir`, `cli_config_command.py` owns `config`, `cli_clean.py` owns
+`clean`, and `cli_rule_args.py` owns `rule` and `rules`.
+
+`cli_shared_args.py` is the home of the shared argparse builders:
+`flatten_rule_codes`, `add_rule_code_argument`, `add_output_format_argument`,
+`add_isolated_argument`, and `add_config_argument`. A new command reuses those
+builders rather than copying an argument shape, because a copied shape drifts
+from the validation and help text the rest of the CLI already applies.
+
+`cli_config_command.py`, `cli_dump_ir.py`, `cli_clean.py`, and
+`rule_commands.py` own the command-specific coordination for configuration
+inspection, canonical IR output, owned-cache cleanup, and rule discovery.
+`cli_command_shell.py` holds the failure contract they share: one
+`stilyagi <command>: <reason>` line on the error stream, then status two.
 
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
@@ -1040,8 +1054,11 @@ while declaring a mode that applies no edits. The record carries no check
 policy: an example stores only the codes it expects, and the presenting adapter
 derives the documented exit status from those codes and the catalogue's
 declared severities through `check_outcome.compute_exit_code`.
-`rules/builtin/descriptions.py` is the one authored source for all six shipped
-rules, and the pack binds each record to its existing `RuleMetadata`.
+`rules/builtin/descriptions.py` authors the `MD001`, `STY001`, and `TERM001`
+records, and `rules/builtin/doc_descriptions.py` authors `DOC001`-`DOC003`
+alongside the shared citations in `rules/builtin/shared_text.py`;
+`descriptions.py` re-exports the documentation records so the pack still reads
+one module. The pack binds each record to its existing `RuleMetadata`.
 
 `rules/catalogue.py` is a pure query over `registry.builtin_metadata()`. It
 never resolves configuration, extracts a document, runs a rule, discovers a
@@ -2357,6 +2374,15 @@ resolves that tag to immutable commit
 Rust lint tiers, with Interrogate enforcing a 100% docstring-coverage
 threshold. Skylos runs after the Rust lint tiers as the final lint step.
 
+The rule-discovery modules hold the two gate exceptions this feature needed,
+both recorded in `pyproject.toml`. Their validators `_require_capabilities`,
+`_require_fix_mode`, and `_require_preview` are `[tool.skylos.dead_code]` entry
+points, because each is called from a post-initialization hook that Skylos does
+not follow. The `if TYPE_CHECKING:` prologue in `rule_rendering.py`,
+`rule_rendering_json.py`, and the two authored catalogue modules joins the
+`[[tool.duplication_gate.allow]]` family: the shared content is a
+language-level conditional-import idiom, not behaviour to extract.
+
 ### Documentation examples
 
 The documentation style guide requires every fenced example in a user-facing
@@ -2367,10 +2393,20 @@ The loader must reject unmarked or unterminated fences, missing identifiers,
 and duplicate identifiers. The same loader is intended for integration tests
 and behaviour-driven scenarios.
 
-The shared Markdown example loader and its build checks are not implemented
-yet. Until they are, the user-facing examples do not have the required
-executable coverage; adding the policy here does not imply that `make test-doc`
-checks Markdown fences.
+`tests/support/tested_examples.py` is the shared loader for this policy.
+`load_tested_examples` reads a Markdown file, returns each marked block by
+identifier with its fence language and lines, and rejects a marker that names
+no block, an unterminated fence, and a duplicate identifier.
+`tests/test_rule_commands_documented_examples.py` uses it: every
+`stilyagi rules` and `stilyagi rule` transcript in the user's guide is parsed
+by the real argument parser, and the published unknown-code transcript is
+asserted against the command's real output and exit status. The rule-discovery
+examples added by roadmap 2.3.2 are therefore executed from the published
+document rather than from a copy.
+
+The loader covers the documents that call it. A user-facing fence elsewhere
+still needs a marker and a test that loads it before its coverage is real, and
+`make test-doc` does not check Markdown fences.
 
 Rust documentation examples should run as doctests whenever they can execute.
 Use `no_run` only for examples that genuinely cannot execute, such as snippets

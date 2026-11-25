@@ -28,6 +28,7 @@
     TOML:
     [tool.stilyagi.lint]
     select = ["DOC"]
+  
     [tool.stilyagi.rule.DOC001]
     enabled = true
   
@@ -57,6 +58,7 @@
         defaults
       expected codes: None
       expected exit status: 0
+  
     An enabled rule reports the missing separator
       source:
         def f() -> None:
@@ -66,19 +68,23 @@
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC001]
         enabled = true
       expected codes: DOC001
       expected exit status: 0
+  
     A blank separator line satisfies the rule
       source:
         def f() -> None:
             """Do a thing.
+  
             More detail.
             """
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC001]
         enabled = true
       expected codes: None
@@ -124,6 +130,7 @@
     TOML:
     [tool.stilyagi.lint]
     select = ["DOC"]
+  
     [tool.stilyagi.rule.DOC002]
     enabled = true
   
@@ -150,10 +157,12 @@
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC002]
         enabled = true
       expected codes: DOC002
       expected exit status: 0
+  
     A summary ending in a full stop is accepted
       source:
         def f() -> None:
@@ -161,6 +170,7 @@
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC002]
         enabled = true
       expected codes: None
@@ -206,6 +216,7 @@
     TOML:
     [tool.stilyagi.lint]
     select = ["DOC"]
+  
     [tool.stilyagi.rule.DOC003]
     enabled = true
   
@@ -232,10 +243,12 @@
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC003]
         enabled = true
       expected codes: DOC003
       expected exit status: 0
+  
     A summary that describes the owner is accepted
       source:
         def load_config() -> None:
@@ -243,6 +256,7 @@
       configuration:
         [tool.stilyagi.lint]
         select = ["DOC"]
+  
         [tool.stilyagi.rule.DOC003]
         enabled = true
       expected codes: None
@@ -304,6 +318,7 @@
         defaults
       expected codes: MD001
       expected exit status: 1
+  
     Consecutive levels are accepted
       source:
         # Start
@@ -371,6 +386,7 @@
         defaults
       expected codes: STY001
       expected exit status: 0
+  
     Exact spelling is required
       source:
         The the plan is clear.
@@ -378,6 +394,7 @@
         defaults
       expected codes: None
       expected exit status: 0
+  
     A line break ends the run
       source:
         the
@@ -431,6 +448,7 @@
     TOML:
     [tool.stilyagi.lint]
     select = ["MD", "STY", "TERM001"]
+  
     [tool.stilyagi.rule.TERM001]
     terms = ["obviously"]
     case_sensitive = false
@@ -449,6 +467,7 @@
         - Duplicates coalesce after the configured comparison.
       variants:
         None
+  
     case_sensitive
       type: boolean
       default: false
@@ -467,54 +486,64 @@
         defaults
       expected codes: None
       expected exit status: 0
+  
     A selected and configured term is reported
       source:
         This is obviously fine.
       configuration:
         [tool.stilyagi.lint]
         select = ["MD", "STY", "TERM001"]
+  
         [tool.stilyagi.rule.TERM001]
         terms = ["obviously"]
         case_sensitive = false
       expected codes: TERM001
       expected exit status: 1
+  
     Case-insensitive matching folds case
       source:
         Obviously, this is fine.
       configuration:
         [tool.stilyagi.lint]
         select = ["TERM001"]
+  
         [tool.stilyagi.rule.TERM001]
         terms = ["obviously"]
       expected codes: TERM001
       expected exit status: 1
+  
     Case-sensitive matching requires the exact spelling
       source:
         obviously fine.
       configuration:
         [tool.stilyagi.lint]
         select = ["TERM001"]
+  
         [tool.stilyagi.rule.TERM001]
         terms = ["Obviously"]
         case_sensitive = true
       expected codes: None
       expected exit status: 0
+  
     Hyphenated text is split into tokens
       source:
         This is obviously-not fine.
       configuration:
         [tool.stilyagi.lint]
         select = ["TERM001"]
+  
         [tool.stilyagi.rule.TERM001]
         terms = ["obviously"]
       expected codes: TERM001
       expected exit status: 1
+  
     Unicode case folding applies to whole tokens
       source:
         STRASSE matters.
       configuration:
         [tool.stilyagi.lint]
         select = ["TERM001"]
+  
         [tool.stilyagi.rule.TERM001]
         terms = ["straße"]
         case_sensitive = false

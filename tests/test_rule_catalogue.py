@@ -9,6 +9,7 @@ default enablement has to be argued for here as well as in the declaration.
 
 import dataclasses as dc
 import functools
+import importlib
 import typing as typ
 
 import pytest
@@ -202,6 +203,30 @@ def test_catalogue_miss_retains_the_raw_code() -> None:
     assert code in str(raised.value), (
         "expected the message to carry the value unmodified"
     )
+
+
+def test_inventory_codes_are_unique() -> None:
+    """The inventory declares each code once, as exact lookup assumes."""
+    codes = [rule.code for rule in builtin_metadata()]
+
+    assert len(codes) == len(set(codes)), "expected every rule code to be unique"
+
+
+def test_inventory_rejects_a_duplicate_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A duplicated declaration fails at inventory construction.
+
+    `get_rule` promises one descriptor per code, so a duplicate must not reach
+    a query where it would silently return an arbitrary member.
+    """
+    builtin = importlib.import_module("stilyagi.rules.builtin.pack")
+    first = builtin.inventory()[0]
+    duplicated = (*builtin._BUILTIN_RULES, builtin._BUILTIN_RULES[0])
+
+    monkeypatch.setattr(builtin, "_BUILTIN_RULES", duplicated)
+
+    with pytest.raises(ValueError, match="duplicate builtin rule code"):
+        builtin.inventory()
+    assert first.code, "expected the fixture rule to carry a code"
 
 
 def test_catalogue_lookup_error_is_a_lookup_error() -> None:

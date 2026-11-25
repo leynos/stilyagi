@@ -222,6 +222,24 @@ def test_detail_text_renders_explicit_none_for_absent_content(code: str) -> None
     assert "Options:\n  None" in output, "expected explicit None for empty options"
 
 
+def test_detail_text_keeps_blank_separators_inside_an_example() -> None:
+    """A blank line inside a source snippet survives rendering.
+
+    An earlier renderer split each already-rendered entry again, so an empty
+    entry produced no lines at all and the separator vanished. That changed
+    what the catalogue appeared to claim: an example documented as having a
+    blank separator rendered without one.
+    """
+    _status, output, _error = detail_result("DOC001")
+
+    assert '          """Do a thing.\n\n          More detail.' in output, (
+        "expected the separated example to keep its blank line"
+    )
+    assert 'select = ["DOC"]\n\n  [tool.stilyagi.rule.DOC001]' in output, (
+        "expected the TOML example to keep the blank line between tables"
+    )
+
+
 def test_term001_detail_documents_both_boolean_variants() -> None:
     """The opt-in rule renders false and true with their consequences."""
     _status, output, _error = detail_result("TERM001")

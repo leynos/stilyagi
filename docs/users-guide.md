@@ -952,6 +952,7 @@ configuration, extracting a document, or running a rule. It works in an empty
 directory and in a repository whose configuration is malformed, which makes it
 useful when a check fails before it can explain itself.
 
+<!-- tested-example: rules-invocations -->
 ```shell
 stilyagi rules
 stilyagi rules --output-format json
@@ -980,6 +981,7 @@ disabled by the `plugins` gate. `--fixable yes` selects only `STY001`, because
 `stilyagi rule CODE` prints the complete documentation for one exact,
 case-sensitive code:
 
+<!-- tested-example: rule-invocations -->
 ```shell
 stilyagi rule TERM001
 stilyagi rule STY001 --output-format json
@@ -993,6 +995,7 @@ references. An unknown code, a prefix, or a lower-case spelling exits `2` with
 an actionable message on standard error and nothing on standard output, even
 when JSON output was requested.
 
+<!-- tested-example: rule-unknown-code -->
 ```shell
 $ stilyagi rule MD
 stilyagi rule: unknown rule code: MD
