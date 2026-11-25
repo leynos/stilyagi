@@ -94,36 +94,75 @@ def load_tested_examples(
     >>> "projection-anomaly-record" in examples
     True
     """
-    examples: dict[str, MarkedExample] = {}
-    pending: str | None = None
     lines = path.read_text(encoding="utf-8").splitlines()
-    index = 0
-    while index < len(lines):
-        marker = _MARKER.match(lines[index])
-        if marker is not None:
-            if pending is not None:
-                message = (
-                    f"marker {pending!r} names no fenced block before "
-                    f"marker {marker.group('name')!r}"
-                )
-                raise ValueError(message)
-            pending = marker.group("name")
-            index += 1
-            continue
-        fence = _FENCE.match(lines[index])
-        if fence is None:
-            index += 1
-            continue
-        if pending is None:
-            message = f"unmarked fence at line {index + 1} of {path.name}"
-            raise ValueError(message)
-        example, index = _read_block(lines, index, fence, pending)
-        _store_example(examples, example)
-        pending = None
-    if pending is not None:
-        message = f"marker {pending!r} names no fenced block"
+    scan = _DocumentScan(lines=lines, document=path.name)
+    examples = scan.collect()
+    if scan.pending is not None:
+        message = f"marker {scan.pending!r} names no fenced block"
         raise ValueError(message)
     return examples
+
+
+@dc.dataclass(slots=True)
+class _DocumentScan:
+    """One pass over a document's markers and fenced blocks.
+
+    A marker names the single block that follows it, so the scan holds that
+    name pending until its block closes. Keeping the state here lets each
+    rejection be decided where the document breaks the policy, rather than in
+    one function that has to recognize every shape at once.
+    """
+
+    lines: cabc.Sequence[str]
+    document: str
+    examples: dict[str, MarkedExample] = dc.field(default_factory=dict)
+    pending: str | None = None
+
+    def collect(self) -> dict[str, MarkedExample]:
+        """Scan the document and return the blocks closed so far.
+
+        A marker still pending at the end of the document is left in
+        :attr:`pending` for the caller to reject.
+
+        Returns
+        -------
+        dict[str, MarkedExample]
+            Each marked block, keyed by name.
+        """
+        index = 0
+        while index < len(self.lines):
+            index = self._consume(index)
+        return self.examples
+
+    def _consume(self, index: int) -> int:
+        """Consume the line at ``index`` and return the index to resume from."""
+        marker = _MARKER.match(self.lines[index])
+        if marker is not None:
+            self._accept_marker(marker.group("name"))
+            return index + 1
+        fence = _FENCE.match(self.lines[index])
+        if fence is None:
+            return index + 1
+        return self._consume_block(index, fence)
+
+    def _accept_marker(self, name: str) -> None:
+        """Record ``name`` as pending, rejecting a marker that displaces one."""
+        if self.pending is not None:
+            message = (
+                f"marker {self.pending!r} names no fenced block before marker {name!r}"
+            )
+            raise ValueError(message)
+        self.pending = name
+
+    def _consume_block(self, index: int, fence: re.Match[str]) -> int:
+        """Read the block whose opening fence is at ``index`` and store it."""
+        if self.pending is None:
+            message = f"unmarked fence at line {index + 1} of {self.document}"
+            raise ValueError(message)
+        example, next_index = _read_block(self.lines, index, fence, self.pending)
+        _store_example(self.examples, example)
+        self.pending = None
+        return next_index
 
 
 def _read_block(
