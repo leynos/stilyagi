@@ -39,6 +39,9 @@ CLASSIFIED_EXTERNAL_CALLS: typ.Final = {
     "dependabot-automerge.yml:automerge": (
         "approves and merges Dependabot pull requests; it builds nothing"
     ),
+    "delayed-pr-comment.yml:delayed-comment": (
+        "sleeps, then posts one pull-request comment with gh; it builds nothing"
+    ),
     "mutation-testing.yml:mutation-rust": (
         "cargo-mutants runs `cargo test` only and no Make goal: the shared "
         "workflow's setup-rust exports -D warnings, which displaces mold, and "
