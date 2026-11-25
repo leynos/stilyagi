@@ -25,8 +25,9 @@ if typ.TYPE_CHECKING:  # pragma: no cover - typing only
 
 __all__ = [
     "SCHEMA_VERSION",
-    "detail_envelope",
-    "list_envelope",
+    "descriptor",
+    "descriptors",
+    "envelope",
 ]
 
 #: Version of the JSON envelope and descriptor shape.
@@ -37,19 +38,19 @@ SCHEMA_VERSION = 1
 type ExitCode = cabc.Callable[[RuleExample], int]
 
 
-def list_envelope(
-    rules: cabc.Iterable[RuleMetadata],
-    *,
-    exit_code: ExitCode,
-) -> str:
-    """Return the schema-version-1 list envelope as JSON text.
+def envelope(payload_key: str, payload: object) -> str:
+    """Wrap one payload in the schema-version-1 envelope and serialize it.
+
+    Both commands publish the same envelope with a single payload key, so the
+    wrapper is written once; only the key and payload differ. The caller names
+    the key because it also owns the payload's shape.
 
     Parameters
     ----------
-    rules:
-        Descriptors in presentation order.
-    exit_code:
-        Derives one example's documented exit status.
+    payload_key:
+        The envelope key the payload sits under, ``rules`` or ``rule``.
+    payload:
+        The already-encoded descriptor or descriptor list.
 
     Returns
     -------
@@ -58,32 +59,11 @@ def list_envelope(
     """
     return _dump_json({
         "schema_version": SCHEMA_VERSION,
-        "rules": _descriptors(rules, exit_code=exit_code),
+        payload_key: payload,
     })
 
 
-def detail_envelope(rule: RuleMetadata, *, exit_code: ExitCode) -> str:
-    """Return the schema-version-1 detail envelope as JSON text.
-
-    Parameters
-    ----------
-    rule:
-        The descriptor to encode.
-    exit_code:
-        Derives one example's documented exit status.
-
-    Returns
-    -------
-    str
-        The complete envelope, ending in one newline.
-    """
-    return _dump_json({
-        "schema_version": SCHEMA_VERSION,
-        "rule": _descriptor(rule, exit_code=exit_code),
-    })
-
-
-def _descriptors(
+def descriptors(
     rules: cabc.Iterable[RuleMetadata],
     *,
     exit_code: ExitCode,
@@ -95,10 +75,10 @@ def _descriptors(
     list[dict[str, object]]
         One JSON-ready mapping per rule.
     """
-    return [_descriptor(rule, exit_code=exit_code) for rule in rules]
+    return [descriptor(rule, exit_code=exit_code) for rule in rules]
 
 
-def _descriptor(
+def descriptor(
     rule: RuleMetadata,
     *,
     exit_code: ExitCode,

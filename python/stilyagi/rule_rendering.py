@@ -68,7 +68,10 @@ def render_rule_list(
     """
     _require_output_format(output_format)
     if output_format == "json":
-        return rule_rendering_json.list_envelope(rules, exit_code=example_exit_code)
+        return rule_rendering_json.envelope(
+            "rules",
+            rule_rendering_json.descriptors(rules, exit_code=example_exit_code),
+        )
     return _render_list_text(rules)
 
 
@@ -98,7 +101,10 @@ def render_rule_detail(
     """
     _require_output_format(output_format)
     if output_format == "json":
-        return rule_rendering_json.detail_envelope(rule, exit_code=example_exit_code)
+        return rule_rendering_json.envelope(
+            "rule",
+            rule_rendering_json.descriptor(rule, exit_code=example_exit_code),
+        )
     return _render_detail_text(rule)
 
 
