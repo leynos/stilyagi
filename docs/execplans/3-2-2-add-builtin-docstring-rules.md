@@ -218,6 +218,15 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       synthetic-break test claimed three source bytes for a two-byte `"A\r"`,
       and a synthetic separator contributes none, so the coherent source is
       `A\r\nB.` with spans `(0, 2)` and `(2, 5)`.
+- [x] (2026-11-24) Merged as squash commit `de7d302fca` with
+      `--match-head-commit` bound to `58c97a05`. On that head all four hosted
+      `Smoke` jobs passed, CodeScene and Gecko passed, GitHub reported
+      `CLEAN` and `APPROVED`, the completeness assessment cleared for the head
+      and plan blob `03ff9c7e`, and the fourteen pre-merge checks passed. The
+      one Codex thread was verified addressed — CodeRabbit confirmed the
+      finding is fixed — and resolved with the evidence reply in its thread.
+      The post-merge `Smoke` and `Coverage (main)` runs were still queued on
+      hosted runners at hand-off.
 
 ## Surprises & discoveries
 
