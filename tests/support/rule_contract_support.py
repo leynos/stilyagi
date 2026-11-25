@@ -17,6 +17,7 @@ if typ.TYPE_CHECKING:
     from stilyagi.config.schema import StilyagiConfig
     from stilyagi.diagnostics import Diagnostic
     from stilyagi.rules.base import RuleMetadata
+    from stilyagi.rules.description import RuleExample
 
 #: Repository root, used to resolve documented repository-relative references.
 REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[2]
@@ -44,40 +45,73 @@ def resolved_config(tmp_path: pathlib.Path, toml_text: str) -> StilyagiConfig:
     )
 
 
-def lint(config_value: StilyagiConfig, source: str) -> list[Diagnostic]:
-    """Lint one Markdown source through the production rule boundary.
+def lint(
+    config_value: StilyagiConfig,
+    source: str,
+    syntax: model.Syntax = model.Syntax.MARKDOWN,
+) -> list[Diagnostic]:
+    """Lint one source through the production rule boundary.
+
+    The catalogue now spans Markdown and documentation rules, so the syntax is
+    a parameter: a documentation example must be extracted as Python or Rust,
+    exactly as a real run on such a file would be.
+
+    Parameters
+    ----------
+    config_value:
+        The effective configuration to run under.
+    source:
+        The example source text.
+    syntax:
+        The source syntax to extract the example as.
 
     Returns
     -------
     list[Diagnostic]
         The diagnostics that survived selection and suppression.
     """
+    suffix = {model.Syntax.MARKDOWN: ".md", model.Syntax.PYTHON_DOCSTRING: ".py"}.get(
+        syntax, ".md"
+    )
     return run_rules(
         RuleRunRequest(
             config=config_value,
             config_path=None,
             source_bytes=source.encode("utf-8"),
-            reported_path="example.md",
-            document=engine.extract_document(source, model.Syntax.MARKDOWN),
+            reported_path=f"example{suffix}",
+            document=engine.extract_document(source, syntax),
         )
     )
 
 
 def config_selecting(code: str) -> StilyagiConfig:
-    """Return a configuration that selects exactly one builtin rule."""
+    """Return a configuration that selects exactly one builtin rule.
+
+    A documentation rule is also opted in, because selecting a `DOC` code does
+    not make it report. An option that needs a value the example does not
+    supply is left at its documented default.
+
+    Returns
+    -------
+    StilyagiConfig
+        A configuration selecting, and if needed opting in, that one rule.
+    """
+    rules: dict[str, dict[str, object]] = {"TERM001": {"terms": ["obviously"]}}
+    if code.startswith("DOC"):
+        rules[code] = {"enabled": True}
     return config.StilyagiConfig(
         lint=config.LintConfig(select=(code,)),
-        rules={"TERM001": {"terms": ["obviously"]}},
+        rules=rules,
     )
 
 
-def first_example_source(rule: RuleMetadata) -> str:
+def first_reporting_example(rule: RuleMetadata) -> RuleExample:
     """Return the first documented example that reports the rule.
 
     Returns
     -------
-    str
-        The example source the rule documents for its own finding.
+    RuleExample
+        The example the rule documents for its own finding.
 
     Raises
     ------
@@ -95,13 +129,36 @@ def first_example_source(rule: RuleMetadata) -> str:
     if example is None:
         message = f"{rule.code} documents no reporting example"
         raise ValueError(message)
-    return example.source
+    return example
+
+
+def example_syntax(rule: RuleMetadata) -> model.Syntax:
+    """Return the syntax a rule's examples must be extracted as.
+
+    Returns
+    -------
+    model.Syntax
+        The syntax the rule's target declares for its example sources.
+
+    Raises
+    ------
+    ValueError
+        The rule's target names no syntax this helper can extract.
+    """
+    syntaxes = rule.target.syntaxes
+    if syntaxes == ("markdown",):
+        return model.Syntax.MARKDOWN
+    if "python" in syntaxes:
+        return model.Syntax.PYTHON_DOCSTRING
+    message = f"no documented example syntax for {rule.code}: {syntaxes}"
+    raise ValueError(message)
 
 
 __all__ = [
     "REPOSITORY_ROOT",
     "config_selecting",
-    "first_example_source",
+    "example_syntax",
+    "first_reporting_example",
     "lint",
     "resolved_config",
 ]

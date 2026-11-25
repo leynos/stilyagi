@@ -435,19 +435,22 @@ Pass `--config` with an explicit config file path or an inline TOML fragment to
 supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
 
-#### Builtin Markdown rules
+#### Builtin rules
 
-The builtin pack ships three deterministic Markdown rules. None of them uses a
-natural language processing (NLP) component, downloads a model, or makes a
-locale claim.
+The builtin pack ships three deterministic Markdown rules and three opt-in
+documentation rules. None of them uses a natural language processing (NLP)
+component, downloads a model, or makes a locale claim.
 
-| Code      | Name            | Severity | Offered fix                                   |
-| --------- | --------------- | -------- | --------------------------------------------- |
-| `MD001`   | `heading-depth` | error    | Manual only; no edit is proposed.             |
-| `STY001`  | `repeated-word` | warning  | Unsafe suffix removal; needs explicit opt-in. |
-| `TERM001` | `banned-term`   | error    | None.                                         |
+| Code      | Name                  | Severity | Offered fix                                   |
+| --------- | --------------------- | -------- | --------------------------------------------- |
+| `MD001`   | `heading-depth`       | error    | Manual only; no edit is proposed.             |
+| `STY001`  | `repeated-word`       | warning  | Unsafe suffix removal; needs explicit opt-in. |
+| `TERM001` | `banned-term`         | error    | None.                                         |
+| `DOC001`  | `summary-separation`  | warning  | None; needs explicit opt-in.                  |
+| `DOC002`  | `summary-punctuation` | warning  | None; needs explicit opt-in.                  |
+| `DOC003`  | `owner-only-summary`  | warning  | None; needs explicit opt-in.                  |
 
-*Table 2: The starter-pack rules, their default severities, and fixability.*
+*Table 2: The builtin rules, their default severities, and fixability.*
 
 `MD001` reports a heading whose depth is more than one greater than the
 previous heading. The first heading may be any depth. The diagnostic covers the
@@ -467,6 +470,66 @@ one term. Each term must be a single alphabetic word; a multi-word, empty, or
 non-alphabetic term is a configuration error (exit code `2`). Comparison folds
 Unicode case by default; `case_sensitive = true` requires the configured
 spelling. The rule reports the original token span and never offers a fix.
+
+#### Builtin documentation rules
+
+`DOC001`, `DOC002`, and `DOC003` read Python docstrings and Rust documentation
+comments (`///` and `//!`). Standalone Markdown and ordinary comments are
+outside their surface: an ordinary `#` comment in Python, a `//` comment in
+Rust, and any Markdown paragraph never earns one of these codes.
+
+| Code     | Syntaxes                              | Owner kinds                                                                                                         |
+| -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `DOC001` | Python `python_docstring`             | `module`, `class`, `function`                                                                                       |
+| `DOC002` | Python and Rust documentation regions | Any owner state, including an absent owner                                                                          |
+| `DOC003` | Python and Rust documentation regions | Python `class`, `function`; Rust `struct`, `enum`, `union`, `trait`, `function`, `const`, `static`, `type`, `macro` |
+
+*Table 3: The documentation rules' supported syntaxes and owner kinds.*
+
+Each rule is inert until its own table sets `enabled = true`. The default
+`lint.select` already includes the `DOC` prefix, so selection alone cannot
+express opt-in.
+
+```toml
+[rule.DOC001]
+enabled = true
+
+[rule.DOC002]
+enabled = true
+
+[rule.DOC003]
+enabled = true
+```
+
+`DOC001` reports a Python docstring whose summary line runs straight into
+further explanation. The first nonblank line is the summary; a one-line
+docstring, or one followed by a blank line, passes. The finding anchors on the
+first non-whitespace character of the second content line, so an indented
+second line reports its first visible character. Blank-only docstrings are
+skipped, because missing documentation is not checked.
+
+`DOC002` reports a summary that does not end in `.`, `!`, or `?`. The candidate
+is the first nonblank line of a Python docstring or the first paragraph of a
+Rust documentation comment. The finding anchors on the summary's final visible
+character. The check is deliberately conservative and is not a Markdown parser:
+a candidate containing a backtick, backslash, square or angle bracket, emphasis
+marker, or double quote is skipped, as is any whose lines begin with a Markdown
+heading, block quote, list marker, fence, thematic break, or doctest prompt.
+The exclusion is by content, not by comment form: a plain Rust block comment
+such as `/** Read records */` is checked like any other candidate, while one
+whose lines carry the conventional decorative `*` prefix is skipped because
+that asterisk is an emphasis marker. Decorative prefixes are never stripped.
+
+`DOC003` reports a summary that only repeats the documented owner's name.
+Matching is whole-summary and case-sensitive. A function's summary may name
+itself with `()` and any summary may end with one period. Python module owners,
+Rust module, `impl`, and fallback item owners, and anonymous owners are
+skipped, because none has a name a summary should describe by itself. `DOC002`
+and `DOC003` may both report the same summary; both findings are kept.
+
+All three rules are warnings, propose no edit, and therefore leave the exit
+status at `0`. A malformed `enabled` value is a configuration error (exit code
+`2`) even when the rule is ignored or unselected.
 
 The tables below configure a standalone `.stilyagi.toml` or `stilyagi.toml`.
 Stilyagi discovers those files, or `pyproject.toml`, in the target's directory
@@ -502,13 +565,13 @@ case_sensitive = false
 ```
 
 `lint.select` defaults to `["MD", "DOC", "PUN", "STY", "PYDOC"]`, so `MD001` and
-`STY001` run without configuration while `TERM001` stays dormant. An entry may
-be a full code such as `STY001`, a prefix such as `STY`, or `ALL`. Prefixes
-expand against the builtin codes that are actually enabled. `lint.ignore` is
-applied after `select` and wins regardless of which prefix is longer.
-`lint.per-file-ignores` maps a glob to codes; the glob is matched against the
-path relative to the directory holding the effective config file, and `*`
-crosses directory separators.
+`STY001` run without configuration while `TERM001` and the `DOC` rules stay
+dormant until each is given its own opt-in. An entry may be a full code such as
+`STY001`, a prefix such as `STY`, or `ALL`. Prefixes expand against the builtin
+codes that are actually enabled. `lint.ignore` is applied after `select` and
+wins regardless of which prefix is longer. `lint.per-file-ignores` maps a glob
+to codes; the glob is matched against the path relative to the directory
+holding the effective config file, and `*` crosses directory separators.
 
 The whole pack is disabled when `plugins` omits `builtin`:
 

@@ -54,6 +54,36 @@ class RegionSegment:
 
 
 @dc.dataclass(frozen=True, slots=True)
+class RegionOwner:
+    """Typed owner metadata for a documentation region.
+
+    The extractor records the code entity a docstring or documentation comment
+    belongs to. Only ``kind`` is guaranteed; a module or an anonymous item has
+    no name, and the IR reports that as ``None`` rather than an empty string.
+
+    Parameters
+    ----------
+    kind:
+        Owner kind as the extractor named it, such as ``class`` or ``struct``.
+    name:
+        Source-level owner name, when the owner is named.
+    qualname:
+        Source-level qualified name, when the extractor resolved one.
+
+    Examples
+    --------
+    >>> RegionOwner("class", "Widget").name
+    'Widget'
+    >>> RegionOwner("module").qualname is None
+    True
+    """
+
+    kind: str
+    name: str | None = None
+    qualname: str | None = None
+
+
+@dc.dataclass(frozen=True, slots=True)
 class RegionView:
     """One IR region with the structural facts the builtin rules consume.
 
@@ -80,6 +110,9 @@ class RegionView:
         structural markers such as a heading's ``#`` prefix. Unlike ``span`` it
         is never inferred from segments, so a rule that must report the
         canonical node can require it explicitly.
+    owner:
+        The code entity this region documents, when the extractor recorded one.
+        Markdown regions never carry an owner.
     """
 
     region_id: str
@@ -90,6 +123,7 @@ class RegionView:
     segments: tuple[RegionSegment, ...]
     span: SourceSpan | None = None
     node_span: SourceSpan | None = None
+    owner: RegionOwner | None = None
 
     @property
     def depth(self) -> int | None:

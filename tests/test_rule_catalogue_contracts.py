@@ -13,13 +13,17 @@ one metadata record would agree with itself no matter what the record said.
 import typing as typ
 
 import pytest
-from stilyagi import config, rule_rendering
+from stilyagi import config, model, rule_rendering
 from stilyagi.check_outcome import compute_exit_code
 from stilyagi.config.rules import Term001Config, parse_term001
 from stilyagi.rules import catalogue
 from stilyagi.rules.builtin import enabled_codes
 
-from tests.support.rule_contract_support import lint, resolved_config
+from tests.support.rule_contract_support import (
+    example_syntax,
+    lint,
+    resolved_config,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -45,6 +49,11 @@ def _example_id(item: tuple[RuleMetadata, RuleExample]) -> str:
     return f"{rule.code}:{example.title}"
 
 
+def _example_syntax(rule: RuleMetadata) -> model.Syntax:
+    """Return the syntax an example's source must be extracted as."""
+    return example_syntax(rule)
+
+
 @pytest.mark.parametrize("item", _documented_examples(), ids=_example_id)
 def test_documented_example_produces_its_expected_codes(
     item: tuple[RuleMetadata, RuleExample],
@@ -63,7 +72,7 @@ def test_documented_example_produces_its_expected_codes(
         else config.StilyagiConfig()
     )
 
-    produced = lint(effective, example.source)
+    produced = lint(effective, example.source, _example_syntax(rule))
 
     assert tuple(finding.code for finding in produced) == example.expected_codes, (
         f"expected {rule.code}'s documented example to produce its stated codes"
@@ -118,7 +127,7 @@ def test_published_configuration_lints_its_rule(
     )
     assert reporting_example is not None, f"expected {rule.code} to document a finding"
 
-    produced = lint(effective, reporting_example.source)
+    produced = lint(effective, reporting_example.source, _example_syntax(rule))
 
     assert rule.code in {item.code for item in produced}, (
         "expected the published TOML to enable the rule it documents"
@@ -126,7 +135,7 @@ def test_published_configuration_lints_its_rule(
 
 
 def test_default_selection_enables_md_and_sty_but_not_term() -> None:
-    """The shipped default selection explains TERM001's disabled-by-default flag."""
+    """The shipped default selection selects MD and STY, not TERM."""
     default_config = config.StilyagiConfig()
     default_select = default_config.lint.select
 
@@ -136,21 +145,47 @@ def test_default_selection_enables_md_and_sty_but_not_term() -> None:
     selected = {
         code for code in enabled_codes() if code.startswith(tuple(default_select))
     }
-    assert selected == {"MD001", "STY001"}, (
-        "expected MD and STY to be enabled by default and TERM to be opt-in"
+    assert selected == {"MD001", "STY001", "DOC001", "DOC002", "DOC003"}, (
+        "expected MD, STY, and the DOC family to be selected by default"
     )
+
+
+def _reports_under_default_config(rule: RuleMetadata) -> bool:
+    """Return whether a rule can report under the shipped default config.
+
+    Selection and enablement are separate facts for the documentation family:
+    the default `DOC` prefix selects DOC001-DOC003, yet each stays inert until
+    its own `enabled` flag is set. A rule counts as enabled by default only
+    when it both is selected and produces a finding without further
+    configuration, which is what a reader of the catalogue wants to know.
+
+    Returns
+    -------
+    bool
+        ``True`` when the rule reports under the shipped default config.
+    """
+    reporting = next(
+        (
+            example
+            for example in rule.description.examples
+            if rule.code in example.expected_codes
+        ),
+        None,
+    )
+    if reporting is None:
+        return False
+    produced = lint(
+        config.StilyagiConfig(),
+        reporting.source,
+        _example_syntax(rule),
+    )
+    return rule.code in {item.code for item in produced}
 
 
 @pytest.mark.parametrize("rule", catalogue.list_rules(), ids=lambda rule: rule.code)
 def test_enabled_by_default_agrees_with_selection(rule: RuleMetadata) -> None:
-    """Every descriptor's default-enablement flag matches real selection."""
-    selected = {
-        code
-        for code in enabled_codes()
-        if code.startswith(tuple(config.StilyagiConfig().lint.select))
-    }
-
-    assert rule.description.enabled_by_default is (rule.code in selected), (
+    """Every descriptor's default-enablement flag matches observed behaviour."""
+    assert rule.description.enabled_by_default is _reports_under_default_config(rule), (
         "expected the catalogue's default-enablement claim to match policy"
     )
 

@@ -52,7 +52,7 @@ _DESCRIPTOR_KEYS = frozenset({
     "limitations",
     "references",
 })
-_CODES = ("MD001", "STY001", "TERM001")
+_CODES = ("DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001")
 
 
 def test_text_list_has_the_documented_header_and_rows() -> None:
@@ -99,7 +99,7 @@ def test_text_list_reports_an_empty_result_with_its_own_sentence() -> None:
         ),
         pytest.param(
             RuleFilters(severity="warning"),
-            ["STY001"],
+            ["DOC001", "DOC002", "DOC003", "STY001"],
             ["MD001", "TERM001"],
             id="severity",
         ),
@@ -111,25 +111,25 @@ def test_text_list_reports_an_empty_result_with_its_own_sentence() -> None:
         ),
         pytest.param(
             RuleFilters(fixable=False),
-            ["MD001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "TERM001"],
             ["STY001"],
             id="manual-is-not-fixable",
         ),
         pytest.param(
             RuleFilters(preview=False),
-            ["MD001", "STY001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
             [],
             id="preview-no",
         ),
         pytest.param(
             RuleFilters(preview=True),
             [],
-            ["MD001", "STY001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
             id="preview-yes",
         ),
         pytest.param(
             RuleFilters(pack="builtin"),
-            ["MD001", "STY001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
             [],
             id="pack",
         ),
@@ -207,8 +207,24 @@ def _expected_top_level(code: str) -> dict[str, str]:
             "Fixable": "no",
             "Fix mode": "none",
         },
+        "DOC001": _doc_expectation("summary-separation"),
+        "DOC002": _doc_expectation("summary-punctuation"),
+        "DOC003": _doc_expectation("owner-only-summary"),
     }
     return values[code]
+
+
+def _doc_expectation(name: str) -> dict[str, str]:
+    """Return the shared top-level expectations for one documentation rule."""
+    return {
+        "name": name,
+        "Default severity": "warning",
+        "Pack": "builtin",
+        "Enabled by default": "no",
+        "Preview": "no",
+        "Fixable": "no",
+        "Fix mode": "none",
+    }
 
 
 @pytest.mark.parametrize("code", _CODES)
@@ -294,7 +310,7 @@ def test_json_list_envelope_and_descriptor_shape() -> None:
     )
     assert payload["schema_version"] == 1, "expected schema version 1"
     assert [rule["code"] for rule in payload["rules"]] == list(_CODES), (
-        "expected the three shipped codes in order"
+        "expected the six shipped codes in order"
     )
     for descriptor in payload["rules"]:
         assert set(descriptor) == _DESCRIPTOR_KEYS, (

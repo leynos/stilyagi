@@ -6,7 +6,7 @@ Feature: Discover builtin rules without reading source
     Given a directory with malformed Stilyagi configuration
     When the maintainer runs "stilyagi rules --output-format json"
     Then the command succeeds without reading configuration
-    And the ordered codes are "MD001,STY001,TERM001"
+    And the ordered codes are "DOC001,DOC002,DOC003,MD001,STY001,TERM001"
     And TERM001 is described as disabled by default
 
   Scenario: Inspect a configured policy variant

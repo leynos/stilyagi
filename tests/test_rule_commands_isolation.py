@@ -136,6 +136,9 @@ def test_rules_command_succeeds_without_any_runtime_boundary(
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert [rule["code"] for rule in payload["rules"]] == [
+        "DOC001",
+        "DOC002",
+        "DOC003",
         "MD001",
         "STY001",
         "TERM001",

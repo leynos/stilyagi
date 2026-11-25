@@ -1,4 +1,264 @@
 # serializer version: 1
+# name: test_text_detail_matches_snapshot[DOC001]
+  '''
+  DOC001 summary-separation
+  Default severity: warning
+  Pack: builtin
+  Enabled by default: no
+  Preview: no
+  Fixable: no
+  Fix mode: none
+  
+  Summary:
+    Report a Python docstring summary with no blank separator line.
+  
+  Explanation:
+    A Python docstring's first content line is its summary. When a further line follows it with no blank line between them, the summary and the explanation run together, which most renderers show as one paragraph. Only Python docstrings are inspected; Rust documentation comments, Markdown, and ordinary comments are not.
+  
+  Targets:
+    syntaxes: python
+    kinds: python_docstring
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+  
+  Policy/enablement:
+    The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["DOC"]
+    [tool.stilyagi.rule.DOC001]
+    enabled = true
+  
+  Fixes:
+    The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.
+  
+  Options:
+    enabled
+      type: boolean
+      default: false
+      description: Whether the rule may report for this configuration.
+      constraints:
+        - Must be a boolean.
+        - The rule stays inert, reporting nothing, until this is true.
+      variants:
+        false: Keep the rule inert even though `DOC` selects it.
+        true: Let the rule report on the regions it claims.
+  
+  Examples:
+    The rule is inert until it is enabled
+      source:
+        def f() -> None:
+            """Do a thing.
+            More detail.
+            """
+      configuration:
+        defaults
+      expected codes: None
+      expected exit status: 0
+    An enabled rule reports the missing separator
+      source:
+        def f() -> None:
+            """Do a thing.
+            More detail.
+            """
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC001]
+        enabled = true
+      expected codes: DOC001
+      expected exit status: 0
+    A blank separator line satisfies the rule
+      source:
+        def f() -> None:
+            """Do a thing.
+            More detail.
+            """
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC001]
+        enabled = true
+      expected codes: None
+      expected exit status: 0
+  
+  Limitations:
+    One-line docstrings, docstrings whose summary is the only content, and regions whose source span cannot be located are not reported.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
+# name: test_text_detail_matches_snapshot[DOC002]
+  '''
+  DOC002 summary-punctuation
+  Default severity: warning
+  Pack: builtin
+  Enabled by default: no
+  Preview: no
+  Fixable: no
+  Fix mode: none
+  
+  Summary:
+    Report a documentation summary with no terminal punctuation.
+  
+  Explanation:
+    A documentation summary reads as a complete sentence when it ends in `.`, `!`, or `?`. The rule reports a plain summary that ends in any other character. A summary carrying Markdown markup, or one whose line begins with markup, is skipped because punctuation inside such text is not reliably a sentence boundary.
+  
+  Targets:
+    syntaxes: python, rust
+    kinds: python_docstring, rust_doc_comment
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+  
+  Policy/enablement:
+    The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["DOC"]
+    [tool.stilyagi.rule.DOC002]
+    enabled = true
+  
+  Fixes:
+    The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.
+  
+  Options:
+    enabled
+      type: boolean
+      default: false
+      description: Whether the rule may report for this configuration.
+      constraints:
+        - Must be a boolean.
+        - The rule stays inert, reporting nothing, until this is true.
+      variants:
+        false: Keep the rule inert even though `DOC` selects it.
+        true: Let the rule report on the regions it claims.
+  
+  Examples:
+    A summary without terminal punctuation is reported
+      source:
+        def f() -> None:
+            """Do a thing"""
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC002]
+        enabled = true
+      expected codes: DOC002
+      expected exit status: 0
+    A summary ending in a full stop is accepted
+      source:
+        def f() -> None:
+            """Do a thing."""
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC002]
+        enabled = true
+      expected codes: None
+      expected exit status: 0
+  
+  Limitations:
+    Summaries containing or beginning with Markdown markup are not judged, so a genuine missing full stop there goes unreported.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
+# name: test_text_detail_matches_snapshot[DOC003]
+  '''
+  DOC003 owner-only-summary
+  Default severity: warning
+  Pack: builtin
+  Enabled by default: no
+  Preview: no
+  Fixable: no
+  Fix mode: none
+  
+  Summary:
+    Report a documentation summary that only repeats its owner name.
+  
+  Explanation:
+    A summary that only restates its owner's name says nothing about what the owner does. The rule reports a summary that is exactly the name, the name with a trailing `()` for a function, or either form followed by one final period. It inspects Python docstrings and Rust documentation comments whose owner is a named class, function, struct, enum, trait, or similar item; an owner the extractor cannot name is skipped.
+  
+  Targets:
+    syntaxes: python, rust
+    kinds: python_docstring, rust_doc_comment
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+  
+  Policy/enablement:
+    The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["DOC"]
+    [tool.stilyagi.rule.DOC003]
+    enabled = true
+  
+  Fixes:
+    The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.
+  
+  Options:
+    enabled
+      type: boolean
+      default: false
+      description: Whether the rule may report for this configuration.
+      constraints:
+        - Must be a boolean.
+        - The rule stays inert, reporting nothing, until this is true.
+      variants:
+        false: Keep the rule inert even though `DOC` selects it.
+        true: Let the rule report on the regions it claims.
+  
+  Examples:
+    A summary that repeats the owner name is reported
+      source:
+        def load_config() -> None:
+            """load_config."""
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC003]
+        enabled = true
+      expected codes: DOC003
+      expected exit status: 0
+    A summary that describes the owner is accepted
+      source:
+        def load_config() -> None:
+            """Load the project configuration."""
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["DOC"]
+        [tool.stilyagi.rule.DOC003]
+        enabled = true
+      expected codes: None
+      expected exit status: 0
+  
+  Limitations:
+    Only the exact repetitions described above are reported, so a summary that restates its owner's name in other words is not.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
 # name: test_text_detail_matches_snapshot[MD001]
   '''
   MD001 heading-depth
@@ -16,7 +276,7 @@
     The first heading may use any depth. A later heading may descend by any amount but may not increase by more than one level at a time, because a skipped level makes the document outline ambiguous for readers and assistive technology. The diagnostic covers the whole heading node, marker included.
   
   Targets:
-    syntax: markdown
+    syntaxes: markdown
     kinds: heading
     scope requires: None
   
@@ -83,7 +343,7 @@
     Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded.
   
   Targets:
-    syntax: markdown
+    syntaxes: markdown
     kinds: heading, paragraph, table_cell
     scope requires: None
   
@@ -158,7 +418,7 @@
     Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.
   
   Targets:
-    syntax: markdown
+    syntaxes: markdown
     kinds: heading, paragraph, table_cell
     scope requires: None
   
@@ -277,10 +537,13 @@
 # ---
 # name: test_text_list_matches_snapshot
   '''
-  CODE     NAME           SEVERITY  FIX-MODE  DEFAULT  PREVIEW
-  MD001    heading-depth  error     manual    yes      no
-  STY001   repeated-word  warning   unsafe    yes      no
-  TERM001  banned-term    error     none      no       no
+  CODE     NAME                 SEVERITY  FIX-MODE  DEFAULT  PREVIEW
+  DOC001   summary-separation   warning   none      no       no
+  DOC002   summary-punctuation  warning   none      no       no
+  DOC003   owner-only-summary   warning   none      no       no
+  MD001    heading-depth        error     manual    yes      no
+  STY001   repeated-word        warning   unsafe    yes      no
+  TERM001  banned-term          error     none      no       no
   
   '''
 # ---

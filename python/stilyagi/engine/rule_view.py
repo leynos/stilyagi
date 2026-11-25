@@ -91,7 +91,8 @@ def regions_for_target(
     document:
         Extracted document whose IR carries the regions.
     target:
-        The rule's declared syntax, kinds, and required scope tokens.
+        The rule's declared syntaxes, kinds, owner kinds, and required scope
+            tokens.
     source_bytes:
         Original file bytes used to verify source-backed segments.
 

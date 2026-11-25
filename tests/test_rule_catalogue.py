@@ -70,6 +70,39 @@ EXPECTED_RULES: typ.Final[tuple[ExpectedRule, ...]] = (
         requires=("STRUCTURE", "TOKENS"),
         option_names=("terms", "case_sensitive"),
     ),
+    ExpectedRule(
+        code="DOC001",
+        name="summary-separation",
+        severity="warning",
+        fix_mode="none",
+        fixable=False,
+        enabled_by_default=False,
+        preview=False,
+        requires=("STRUCTURE",),
+        option_names=("enabled",),
+    ),
+    ExpectedRule(
+        code="DOC002",
+        name="summary-punctuation",
+        severity="warning",
+        fix_mode="none",
+        fixable=False,
+        enabled_by_default=False,
+        preview=False,
+        requires=("STRUCTURE",),
+        option_names=("enabled",),
+    ),
+    ExpectedRule(
+        code="DOC003",
+        name="owner-only-summary",
+        severity="warning",
+        fix_mode="none",
+        fixable=False,
+        enabled_by_default=False,
+        preview=False,
+        requires=("STRUCTURE",),
+        option_names=("enabled",),
+    ),
 )
 
 
@@ -82,9 +115,9 @@ def test_catalogue_lists_every_shipped_rule_in_code_order() -> None:
     """The complete inventory is all three rules, sorted by code."""
     listed = catalogue.list_rules()
 
-    assert [rule.code for rule in listed] == [rule.code for rule in EXPECTED_RULES], (
-        "expected the complete shipped inventory in code order"
-    )
+    assert [rule.code for rule in listed] == sorted(
+        rule.code for rule in EXPECTED_RULES
+    ), "expected the complete shipped inventory in code order"
 
 
 @pytest.mark.parametrize("expected", EXPECTED_RULES, ids=lambda rule: rule.code)
@@ -180,29 +213,39 @@ def test_catalogue_lookup_error_is_a_lookup_error() -> None:
 @pytest.mark.parametrize(
     ("filters", "expected_codes"),
     [
-        pytest.param(RuleFilters(), ["MD001", "STY001", "TERM001"], id="no-filters"),
+        pytest.param(
+            RuleFilters(),
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
+            id="no-filters",
+        ),
         pytest.param(RuleFilters(prefix="MD"), ["MD001"], id="prefix-md"),
         pytest.param(RuleFilters(prefix="S"), ["STY001"], id="prefix-single-letter"),
         pytest.param(RuleFilters(prefix="TERM"), ["TERM001"], id="prefix-term"),
         pytest.param(RuleFilters(prefix="md"), [], id="prefix-case-sensitive"),
         pytest.param(RuleFilters(prefix="ZZ"), [], id="prefix-unknown"),
         pytest.param(
-            RuleFilters(pack="builtin"), ["MD001", "STY001", "TERM001"], id="pack-known"
+            RuleFilters(pack="builtin"),
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
+            id="pack-known",
         ),
         pytest.param(RuleFilters(pack="plugin"), [], id="pack-unknown"),
         pytest.param(RuleFilters(severity="error"), ["MD001", "TERM001"], id="error"),
-        pytest.param(RuleFilters(severity="warning"), ["STY001"], id="warning"),
+        pytest.param(
+            RuleFilters(severity="warning"),
+            ["DOC001", "DOC002", "DOC003", "STY001"],
+            id="warning",
+        ),
         pytest.param(RuleFilters(severity="info"), [], id="info-none"),
         pytest.param(RuleFilters(preview=True), [], id="preview-yes-none"),
         pytest.param(
             RuleFilters(preview=False),
-            ["MD001", "STY001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001"],
             id="preview-no-all",
         ),
         pytest.param(RuleFilters(fixable=True), ["STY001"], id="fixable-yes"),
         pytest.param(
             RuleFilters(fixable=False),
-            ["MD001", "TERM001"],
+            ["DOC001", "DOC002", "DOC003", "MD001", "TERM001"],
             id="fixable-no-includes-manual",
         ),
         pytest.param(
@@ -239,6 +282,9 @@ def test_catalogue_queries_leave_the_inventory_unchanged() -> None:
         "MD001",
         "STY001",
         "TERM001",
+        "DOC001",
+        "DOC002",
+        "DOC003",
     ], "expected the inventory order to be unchanged"
 
 

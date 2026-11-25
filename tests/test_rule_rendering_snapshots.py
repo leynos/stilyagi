@@ -14,7 +14,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.rule_command_support import detail_result, list_result
 
-_CODES = ("MD001", "STY001", "TERM001")
+_CODES = ("DOC001", "DOC002", "DOC003", "MD001", "STY001", "TERM001")
 
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion

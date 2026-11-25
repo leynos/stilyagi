@@ -131,7 +131,7 @@ def list_rules(filters: RuleFilters | None = None) -> tuple[RuleMetadata, ...]:
     Examples
     --------
     >>> [rule.code for rule in list_rules()]
-    ['MD001', 'STY001', 'TERM001']
+    ['DOC001', 'DOC002', 'DOC003', 'MD001', 'STY001', 'TERM001']
     >>> [rule.code for rule in list_rules(RuleFilters(fixable=True))]
     ['STY001']
     >>> list_rules(RuleFilters(prefix="ZZ"))

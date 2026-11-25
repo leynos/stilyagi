@@ -8,10 +8,10 @@ on:
 
 # A second push to a pull request supersedes the run already in flight, which
 # otherwise charges a full set of minutes for a result nobody reads. Pushes to
-# main, dispatches and schedules share the group and are never cancelled: they
+# main, dispatches and schedules each get their own group and are never cancelled: they
 # are the cache writers and the published record.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

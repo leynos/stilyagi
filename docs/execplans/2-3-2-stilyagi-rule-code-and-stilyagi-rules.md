@@ -235,6 +235,26 @@ before continuing.
   Hosted `lint-test`, all three `release-smoke` jobs, CodeScene, and Gecko pass
   at this head (run
   <https://github.com/leynos/stilyagi/actions/runs/45458734508>).
+- [x] (2026-11-25) Formal review response. The review raised four inline items
+  and a failing Domain Architecture pre-merge check; all five are repaired.
+  `RuleExample` no longer stores a CLI exit status — the renderer derives it
+  from the expected codes and the catalogue's severities through
+  `compute_exit_code`. `RuleNotFoundError` keeps the raw code, and the command
+  adapter escapes it for the one-line stderr contract. E6 is now written into
+  the plan as an explicit acceptance requirement. The RFC and both guides
+  distinguish an empty text result from the empty JSON envelope. The Skylos
+  entries for the description validators are path-scoped entry-point rules, and
+  the isolation snapshot records directories as well as files.
+- [x] (2026-11-25) Integrated `origin/main` at `de7d302f` after the PR became
+  CONFLICTING and GitHub stopped creating `pull_request` runs. `main` had
+  shipped roadmap 3.2.2's three documentation rules and replaced
+  `RegionTarget.syntax` with a `syntaxes` tuple. The resolution keeps both
+  features: all six rules now carry a `RuleMetadata` with a description, the
+  JSON `syntax` key stays a single string for schema stability, and the
+  catalogue, command, snapshot, BDD, and contract expectations cover six rules.
+  The full Python suite at the merge is 2054 passed with the same five
+  queue-bound `test_lint_policy_behaviour.py` scratch-crate failures recorded
+  above.
 - [x] (2026-11-24) Sixth assessment: a protected module importing another
   protected module disarmed the outer module's call trace. The cause is that
   `sys.settrace` returns `None` on CPython 3.14 even while a trace function is

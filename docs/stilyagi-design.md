@@ -1032,6 +1032,52 @@ The pack itself is `MD001` heading depth, `STY001` repeated word, and opt-in
 `TERM001` banned term. Only `STY001` proposes an edit, and only as an unsafe
 suffix removal.
 
+#### Delivered 3.2.2 documentation rules
+
+With prerequisite 2.3.1 delivered by
+[PR #240](https://github.com/leynos/stilyagi/pull/240), three opt-in,
+diagnostic-only rules now run through the shared rule pack and policy-targeting
+model. The rule projection gained the typed owner view and targets that name
+several syntaxes and owner kinds as private Python-side extensions; the
+extractor IR and serialized schemas are unchanged. The analysis stays
+structural and uses only the extracted owner metadata:
+
+- `DOC001` checks summary separation in Python docstrings.
+- `DOC002` checks plain-summary punctuation in Python docstrings and Rust
+  documentation comments.
+- `DOC003` warns when a Python or Rust summary only repeats its documented
+  owner's name.
+
+The rules exclude Markdown and arbitrary non-documentation comments. Each
+requires explicit per-rule opt-in because the default `DOC` selection prefix
+already includes these codes; existing selection, ignore, plugin, and
+suppression policy still applies. Internal boundaries:
+
+- `RegionView.owner` is the typed `RegionOwner` (kind, optional name, optional
+  qualname). A present-but-unusable owner is counted as `malformed_region` and
+  projected as absent.
+- `RegionTarget.syntaxes` is a tuple, and `RegionTarget.owner_kinds` gates on
+  owner kind. An empty tuple is unrestricted, including regions with no owner.
+- `engine/region_views.py` owns the raw-to-typed region conversion;
+  `engine/rule_projection.py` keeps the per-document collection pass.
+- `rules/builtin/summary.py` is the only summary-analysis helper: physical
+  lines, first-line and first-paragraph selection, and character-to-source-byte
+  anchoring. It never decodes Python string escapes, strips block-comment
+  asterisks, or parses Markdown.
+- `rules/builtin/line_split.py` owns the physical-line walk, including the
+  CR-LF and synthetic-separator rules.
+- `rules/builtin/markup.py` holds the conservative Markdown exclusion
+  predicates the punctuation rule consults; it is a predicate module, not a
+  parser.
+- `config/rules.py::parse_documentation` validates each rule's `enabled` flag,
+  so a malformed option fails even when policy ignores the rule.
+
+The [3.2.2 ExecPlan](execplans/3-2-2-add-builtin-docstring-rules.md) holds the
+detailed rule contracts, the bounded projection extension, and the validation
+evidence.
+
+#### Delivered 2.3.2 rule discovery
+
 Rule discovery (roadmap 2.3.2) publishes that contract without executing it.
 Each builtin carries an immutable description record with typed options,
 examples, limitations, and references. `rules/catalogue.py` answers list and
@@ -1040,7 +1086,8 @@ exact-code queries from the static inventory, and `stilyagi rules` plus
 resolve effective configuration or extract a document, so they remain usable in
 a broken repository; effective enablement stays a policy question answered
 during a check. The catalogue is the single metadata source: it introduces no
-second code list, option parser, or plugin schema.
+second code list, option parser, or plugin schema, and the six delivered rules
+(three Markdown and three documentation) all appear in it.
 
 #### Grammar-capability extension
 

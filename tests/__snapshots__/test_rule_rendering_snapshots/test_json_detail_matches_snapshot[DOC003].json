@@ -1,0 +1,83 @@
+{
+  "rule": {
+    "code": "DOC003",
+    "configuration": {
+      "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+      "options": [
+        {
+          "constraints": [
+            "Must be a boolean.",
+            "The rule stays inert, reporting nothing, until this is true."
+          ],
+          "default": false,
+          "description": "Whether the rule may report for this configuration.",
+          "name": "enabled",
+          "type": "boolean",
+          "variants": [
+            {
+              "description": "Keep the rule inert even though `DOC` selects it.",
+              "value": false
+            },
+            {
+              "description": "Let the rule report on the regions it claims.",
+              "value": true
+            }
+          ]
+        }
+      ],
+      "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n"
+    },
+    "default_severity": "warning",
+    "enabled_by_default": false,
+    "examples": [
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [
+          "DOC003"
+        ],
+        "source": "def load_config() -> None:\n    \"\"\"load_config.\"\"\"\n",
+        "title": "A summary that repeats the owner name is reported"
+      },
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [],
+        "source": "def load_config() -> None:\n    \"\"\"Load the project configuration.\"\"\"\n",
+        "title": "A summary that describes the owner is accepted"
+      }
+    ],
+    "explanation": "A summary that only restates its owner's name says nothing about what the owner does. The rule reports a summary that is exactly the name, the name with a trailing `()` for a function, or either form followed by one final period. It inspects Python docstrings and Rust documentation comments whose owner is a named class, function, struct, enum, trait, or similar item; an owner the extractor cannot name is skipped.",
+    "fix_mode": "none",
+    "fixable": false,
+    "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+    "limitations": [
+      "Only the exact repetitions described above are reported, so a summary that restates its owner's name in other words is not.",
+      "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+    ],
+    "name": "owner-only-summary",
+    "pack": "builtin",
+    "preview": false,
+    "references": [
+      "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+      "docs/stilyagi-design.md#72-python-rule-api",
+      "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+    ],
+    "requires": [
+      "STRUCTURE"
+    ],
+    "requires_nlp": false,
+    "summary": "Report a documentation summary that only repeats its owner name.",
+    "targets": [
+      {
+        "kinds": [
+          "python_docstring",
+          "rust_doc_comment"
+        ],
+        "scope_has": [],
+        "syntax": "python,rust"
+      }
+    ]
+  },
+  "schema_version": 1
+}

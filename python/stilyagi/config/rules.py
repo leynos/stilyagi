@@ -26,6 +26,7 @@ type RuleOptionParser = cabc.Callable[
 ]
 
 _TERM_KEYS: frozenset[str] = frozenset({"terms", "case_sensitive"})
+_DOC_KEYS: frozenset[str] = frozenset({"enabled"})
 _EMPTY_KEYS: frozenset[str] = frozenset()
 _DEFAULT_PATH = pathlib.Path("<config>")
 
@@ -80,6 +81,31 @@ class Term001Config:
         True
         """
         return bool(self.terms)
+
+
+@dc.dataclass(frozen=True, slots=True)
+class DocRuleConfig:
+    """Configuration shared by the opt-in documentation-summary rules.
+
+    ``DOC001``, ``DOC002``, and ``DOC003`` are selected by the default
+    ``DOC`` prefix, so selection alone cannot express opt-in. Each rule's hook
+    produces nothing until this flag is set, and the flag is validated even
+    when policy ignores the rule.
+
+    Parameters
+    ----------
+    enabled:
+        Whether the rule may report for this configuration.
+
+    Examples
+    --------
+    >>> DocRuleConfig().enabled
+    False
+    >>> DocRuleConfig(enabled=True).enabled
+    True
+    """
+
+    enabled: bool = False
 
 
 def rule_table(config: StilyagiConfig, code: str) -> cabc.Mapping[str, object]:
@@ -208,11 +234,48 @@ def parse_term001(
     Term001Config(terms=('obviously',), case_sensitive=False)
     """
     _reject_unknown(table, code, _TERM_KEYS, path)
-    case_sensitive = _parse_case_sensitive(table, code, path)
+    case_sensitive = _parse_boolean(table, code, "case_sensitive", path)
     return Term001Config(
         terms=_parse_terms(table, code, path, case_sensitive=case_sensitive),
         case_sensitive=case_sensitive,
     )
+
+
+def parse_documentation(
+    table: cabc.Mapping[str, object],
+    code: str,
+    path: pathlib.Path = _DEFAULT_PATH,
+) -> DocRuleConfig:
+    """Validate a documentation rule's table into its frozen config.
+
+    The only accepted option is ``enabled``, and it must be a boolean. Any
+    other key or value raises :class:`stilyagi.config.InvalidConfigError`
+    naming the offending option, so a misspelling cannot silently leave a rule
+    inert.
+
+    Parameters
+    ----------
+    table:
+        Raw ``[tool.stilyagi.rule.CODE]`` mapping.
+    code:
+        Rule code, used verbatim in error keys.
+    path:
+        Originating config path used in error keys.
+
+    Returns
+    -------
+    DocRuleConfig
+        The validated opt-in flag.
+
+    Examples
+    --------
+    >>> parse_documentation({}, "DOC001").enabled
+    False
+    >>> parse_documentation({"enabled": True}, "DOC001").enabled
+    True
+    """
+    _reject_unknown(table, code, _DOC_KEYS, path)
+    return DocRuleConfig(enabled=_parse_boolean(table, code, "enabled", path))
 
 
 def _reject_unknown(
@@ -265,19 +328,16 @@ def _validated_term(entry: object, key: str, path: pathlib.Path) -> str:
     return entry
 
 
-def _parse_case_sensitive(
+def _parse_boolean(
     table: cabc.Mapping[str, object],
     code: str,
+    key: str,
     path: pathlib.Path,
 ) -> bool:
-    """Return the configured case-sensitivity flag."""
-    value = table.get("case_sensitive", False)
+    """Return one boolean option, defaulting to false and refusing others."""
+    value = table.get(key, False)
     if not isinstance(value, bool):
-        raise InvalidConfigError(
-            path,
-            f"rule.{code}.case_sensitive",
-            "must be a boolean",
-        )
+        raise InvalidConfigError(path, f"rule.{code}.{key}", "must be a boolean")
     return value
 
 
@@ -285,13 +345,18 @@ _PARSERS: tuple[tuple[str, RuleOptionParser], ...] = (
     ("MD001", functools.partial(parse_optionless, config_type=Md001Config)),
     ("STY001", functools.partial(parse_optionless, config_type=Sty001Config)),
     ("TERM001", parse_term001),
+    ("DOC001", parse_documentation),
+    ("DOC002", parse_documentation),
+    ("DOC003", parse_documentation),
 )
 
 __all__ = [
+    "DocRuleConfig",
     "Md001Config",
     "RuleOptionParser",
     "Sty001Config",
     "Term001Config",
+    "parse_documentation",
     "parse_optionless",
     "parse_term001",
     "rule_table",

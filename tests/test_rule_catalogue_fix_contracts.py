@@ -22,7 +22,8 @@ from stilyagi.rules.registry import builtin_metadata
 from tests.support.rule_contract_support import (
     REPOSITORY_ROOT,
     config_selecting,
-    first_example_source,
+    example_syntax,
+    first_reporting_example,
     lint,
 )
 
@@ -40,7 +41,12 @@ def test_documented_fix_claims_match_emitted_diagnostics(rule: RuleMetadata) -> 
     rule that documents ``unsafe`` must emit exactly an unsafe edit. This is the
     contract that stops `fixable: true` from being a decorative flag.
     """
-    produced = lint(config_selecting(rule.code), first_example_source(rule))
+    example = first_reporting_example(rule)
+    produced = lint(
+        config_selecting(rule.code),
+        example.source,
+        example_syntax(rule),
+    )
     finding = next(
         (item for item in produced if item.code == rule.code),
         None,

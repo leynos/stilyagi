@@ -61,6 +61,9 @@ def test_console_rules_ignores_a_malformed_nearby_config(
     assert completed.returncode == 0, "expected static discovery to succeed"
     payload = json.loads(completed.stdout)
     assert [rule["code"] for rule in payload["rules"]] == [
+        "DOC001",
+        "DOC002",
+        "DOC003",
         "MD001",
         "STY001",
         "TERM001",

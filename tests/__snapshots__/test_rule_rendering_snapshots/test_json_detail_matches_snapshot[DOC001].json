@@ -1,0 +1,89 @@
+{
+  "rule": {
+    "code": "DOC001",
+    "configuration": {
+      "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+      "options": [
+        {
+          "constraints": [
+            "Must be a boolean.",
+            "The rule stays inert, reporting nothing, until this is true."
+          ],
+          "default": false,
+          "description": "Whether the rule may report for this configuration.",
+          "name": "enabled",
+          "type": "boolean",
+          "variants": [
+            {
+              "description": "Keep the rule inert even though `DOC` selects it.",
+              "value": false
+            },
+            {
+              "description": "Let the rule report on the regions it claims.",
+              "value": true
+            }
+          ]
+        }
+      ],
+      "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n"
+    },
+    "default_severity": "warning",
+    "enabled_by_default": false,
+    "examples": [
+      {
+        "configuration": "",
+        "exit_code": 0,
+        "expected_codes": [],
+        "source": "def f() -> None:\n    \"\"\"Do a thing.\n    More detail.\n    \"\"\"\n",
+        "title": "The rule is inert until it is enabled"
+      },
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [
+          "DOC001"
+        ],
+        "source": "def f() -> None:\n    \"\"\"Do a thing.\n    More detail.\n    \"\"\"\n",
+        "title": "An enabled rule reports the missing separator"
+      },
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [],
+        "source": "def f() -> None:\n    \"\"\"Do a thing.\n\n    More detail.\n    \"\"\"\n",
+        "title": "A blank separator line satisfies the rule"
+      }
+    ],
+    "explanation": "A Python docstring's first content line is its summary. When a further line follows it with no blank line between them, the summary and the explanation run together, which most renderers show as one paragraph. Only Python docstrings are inspected; Rust documentation comments, Markdown, and ordinary comments are not.",
+    "fix_mode": "none",
+    "fixable": false,
+    "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+    "limitations": [
+      "One-line docstrings, docstrings whose summary is the only content, and regions whose source span cannot be located are not reported.",
+      "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+    ],
+    "name": "summary-separation",
+    "pack": "builtin",
+    "preview": false,
+    "references": [
+      "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+      "docs/stilyagi-design.md#72-python-rule-api",
+      "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+    ],
+    "requires": [
+      "STRUCTURE"
+    ],
+    "requires_nlp": false,
+    "summary": "Report a Python docstring summary with no blank separator line.",
+    "targets": [
+      {
+        "kinds": [
+          "python_docstring"
+        ],
+        "scope_has": [],
+        "syntax": "python"
+      }
+    ]
+  },
+  "schema_version": 1
+}

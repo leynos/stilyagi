@@ -70,13 +70,21 @@ class LintSetup:
             rules={code: dict(values) for code, values in self.rules.items()},
         )
 
-    def request_for(self, source: str | bytes) -> RuleRunRequest:
+    def request_for(
+        self,
+        source: str | bytes,
+        syntax: model.Syntax = model.Syntax.MARKDOWN,
+    ) -> RuleRunRequest:
         """Extract ``source`` and build the run request this setup describes.
 
         Parameters
         ----------
         source:
-            Markdown text, or its UTF-8 bytes.
+            Source text, or its UTF-8 bytes.
+        syntax:
+            The registered extractor syntax to read ``source`` with. Markdown
+            is the default so existing callers keep their meaning; a docstring
+            or documentation-comment test names its own syntax.
 
         Returns
         -------
@@ -84,9 +92,17 @@ class LintSetup:
             The request both :meth:`run` and :meth:`policy` start from, so a
             test can assert on selection and suppression without also
             producing diagnostics.
+
+        Examples
+        --------
+        >>> request = LintSetup().request_for(
+        ...     "'Doc.'", model.Syntax.PYTHON_DOCSTRING
+        ... )
+        >>> request.document.syntax is model.Syntax.PYTHON_DOCSTRING
+        True
         """
         text = source.decode("utf-8") if isinstance(source, bytes) else source
-        document = engine.extract_document(text, model.Syntax.MARKDOWN)
+        document = engine.extract_document(text, syntax)
         return RuleRunRequest(
             config=self.build_config(),
             config_path=None,
@@ -96,13 +112,19 @@ class LintSetup:
             config_relative_path=self._config_relative_path(),
         )
 
-    def run(self, source: str | bytes) -> list[diagnostics.Diagnostic]:
+    def run(
+        self,
+        source: str | bytes,
+        syntax: model.Syntax = model.Syntax.MARKDOWN,
+    ) -> list[diagnostics.Diagnostic]:
         r"""Extract ``source`` and run the selected builtin rules over it.
 
         Parameters
         ----------
         source:
-            Markdown text, or its UTF-8 bytes.
+            Source text, or its UTF-8 bytes.
+        syntax:
+            The registered extractor syntax to read ``source`` with.
 
         Returns
         -------
@@ -115,8 +137,10 @@ class LintSetup:
         >>> setup = LintSetup(select=("STY",))
         >>> [found.code for found in setup.run("the the.\n")]
         ['STY001']
+        >>> LintSetup(select=("DOC",)).run("'Doc.'", model.Syntax.PYTHON_DOCSTRING)
+        []
         """
-        return run_rules(self.request_for(source))
+        return run_rules(self.request_for(source, syntax))
 
     def policy(self, source: str | bytes) -> RulePolicy:
         r"""Return the resolved selection and suppression plan for ``source``.

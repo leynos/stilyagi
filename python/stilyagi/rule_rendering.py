@@ -183,10 +183,10 @@ def _append_section(
 
 
 def _target_lines(target: RegionTarget) -> list[str]:
-    """Render one target's syntax, kinds, and required scope tags."""
+    """Render one target's syntaxes, kinds, and required scope tags."""
     scope = ", ".join(target.scope_has) if target.scope_has else "None"
     return [
-        f"syntax: {target.syntax}",
+        f"syntaxes: {', '.join(target.syntaxes)}",
         f"kinds: {', '.join(target.kinds)}",
         f"scope requires: {scope}",
     ]
@@ -375,9 +375,20 @@ def _descriptor(rule: RuleMetadata) -> dict[str, object]:
 
 
 def _target_descriptor(target: RegionTarget) -> dict[str, object]:
-    """Render one target with its set-like arrays sorted lexically."""
+    """Render one target with its set-like arrays sorted lexically.
+
+    The schema-version-1 `syntax` key stays a single string for consumers that
+    already parse it, and repeats the target's declared syntaxes joined by a
+    comma when a rule reads more than one language. `kinds` and `scope_has`
+    remain sorted arrays so their order is stable.
+
+    Returns
+    -------
+    dict[str, object]
+        The target as a JSON-ready mapping.
+    """
     return {
-        "syntax": target.syntax,
+        "syntax": ",".join(target.syntaxes),
         "kinds": sorted(target.kinds),
         "scope_has": sorted(target.scope_has),
     }

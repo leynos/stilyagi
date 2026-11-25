@@ -20,7 +20,7 @@ from stilyagi.rules.inline_code import InlineCodeIndex
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi import model
-    from stilyagi.model.region import RegionView
+    from stilyagi.model.region import RegionOwner, RegionView
     from stilyagi.rules.tokens import TokenizedSegment
 
 
@@ -32,13 +32,18 @@ class RegionTarget:
     ----------
     kinds:
         Canonical region kinds the rule reads, for example ``heading``.
-    syntax:
-        Source syntax the target applies to. Builtin Markdown rules use the
-        default; other syntaxes' regions are never handed to them.
+    syntaxes:
+        Source syntaxes the target applies to. Builtin Markdown rules use the
+        default; a region from any other syntax is never handed to them. A
+        rule that spans languages names each syntax it reads.
     scope_has:
         Scope tokens that must all be present in a region's scope path. The
         IR serializes scope as a ``Vec<String>``, so this is interpreted in
         Python rather than by the extractor.
+    owner_kinds:
+        Owner kinds the target accepts. An empty tuple is unrestricted,
+        including regions that record no owner at all. A nonempty tuple
+        requires a present owner whose kind is one of these values.
 
     Examples
     --------
@@ -46,11 +51,17 @@ class RegionTarget:
     True
     >>> RegionTarget(kinds=("heading",)).matches_kind("paragraph")
     False
+    >>> from stilyagi.model.region import RegionOwner
+    >>> RegionTarget(
+    ...     kinds=("python_docstring",), syntaxes=("python",), owner_kinds=("class",)
+    ... ).matches_owner(RegionOwner("class"))
+    True
     """
 
     kinds: tuple[str, ...]
-    syntax: str = "markdown"
+    syntaxes: tuple[str, ...] = ("markdown",)
     scope_has: tuple[str, ...] = ()
+    owner_kinds: tuple[str, ...] = ()
 
     def matches_kind(self, kind: str) -> bool:
         """Return whether ``kind`` is one of the declared region kinds.
@@ -66,6 +77,53 @@ class RegionTarget:
             ``True`` when the target claims this kind.
         """
         return kind in self.kinds
+
+    def matches_syntax(self, syntax: str) -> bool:
+        """Return whether ``syntax`` is one of the declared source syntaxes.
+
+        Parameters
+        ----------
+        syntax:
+            Source syntax that produced a region, for example ``python``.
+
+        Returns
+        -------
+        bool
+            ``True`` when the target claims this syntax.
+
+        Examples
+        --------
+        >>> RegionTarget(("heading",)).matches_syntax("markdown")
+        True
+        >>> RegionTarget(("heading",)).matches_syntax("python")
+        False
+        """
+        return syntax in self.syntaxes
+
+    def matches_owner(self, owner: RegionOwner | None) -> bool:
+        """Return whether a region's owner satisfies the kind requirement.
+
+        Parameters
+        ----------
+        owner:
+            The region's projected owner, or ``None`` when it has none.
+
+        Returns
+        -------
+        bool
+            ``True`` when no owner kind was required, or when ``owner`` is
+            present and its kind is one the target declares.
+
+        Examples
+        --------
+        >>> RegionTarget(("heading",)).matches_owner(None)
+        True
+        >>> RegionTarget(("heading",), owner_kinds=("class",)).matches_owner(None)
+        False
+        """
+        if not self.owner_kinds:
+            return True
+        return owner is not None and owner.kind in self.owner_kinds
 
     def matches_scope(self, scope: tuple[str, ...]) -> bool:
         """Return whether every required scope token is present.
@@ -100,7 +158,8 @@ class RegionTarget:
         Returns
         -------
         bool
-            ``True`` when syntax, kind, and every scope token match.
+            ``True`` when syntax, kind, owner kind, and every scope token
+            match.
 
         Examples
         --------
@@ -112,8 +171,9 @@ class RegionTarget:
         False
         """
         return (
-            region.syntax == self.syntax
+            self.matches_syntax(region.syntax)
             and self.matches_kind(region.kind)
+            and self.matches_owner(region.owner)
             and self.matches_scope(region.scope)
         )
 
@@ -140,29 +200,6 @@ class RuleMetadata:
         must agree with the description's capability declaration.
     pack:
         The owning rule pack. Builtin rules all belong to ``builtin``.
-
-    Examples
-    --------
-    >>> from stilyagi.rules.description import RuleConfiguration, RuleDescription
-    >>> metadata = RuleMetadata(
-    ...     code="MD001",
-    ...     name="heading-depth",
-    ...     target=RegionTarget(kinds=("heading",)),
-    ...     default_severity="error",
-    ...     description=RuleDescription(
-    ...         summary="Report heading depth jumps greater than one.",
-    ...         explanation="A skipped level obscures the outline.",
-    ...         requires=("STRUCTURE",),
-    ...         fix_mode="manual",
-    ...         enabled_by_default=True,
-    ...         configuration=RuleConfiguration("Selected by default."),
-    ...         fixes="No edit is applied.",
-    ...     ),
-    ... )
-    >>> metadata.pack
-    'builtin'
-    >>> metadata.description.fixable
-    False
     """
 
     code: str

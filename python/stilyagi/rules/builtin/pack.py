@@ -1,8 +1,8 @@
 """Inventory and runner for the starter builtin rule pack.
 
-The starter pack declares three deterministic rules. ``MD`` structural rules
-come first, then ``STY`` style rules, then opt-in ``TERM`` rules, which is the
-documented code-prefix scheme.
+The starter pack declares six deterministic rules. ``MD`` structural rules
+come first, then ``STY`` style rules, then the opt-in ``TERM`` rule, then the
+opt-in ``DOC`` documentation rules, which is the documented code-prefix scheme.
 
 Each selected rule runs once per document against only the regions its
 :class:`~stilyagi.rules.base.RegionTarget` claims; a rule whose code is not
@@ -23,6 +23,7 @@ from stilyagi.rules.base import RegionTarget, RuleContext, RuleMetadata
 from stilyagi.rules.builtin import (
     banned_term,
     descriptions,
+    documentation,
     heading_depth,
     repeated_word,
     text,
@@ -45,6 +46,42 @@ __all__ = [
 ]
 
 _TEXT_TARGET = RegionTarget(kinds=("heading", "paragraph", "table_cell"))
+
+#: Python owners whose docstrings carry a summary worth checking.
+_PYTHON_DOC_OWNERS: tuple[str, ...] = ("module", "class", "function")
+
+#: Python owners whose name can be repeated by their own summary.
+_PYTHON_NAMED_OWNERS: tuple[str, ...] = ("class", "function")
+
+#: Rust owners whose name can be repeated by their own summary. Module, impl,
+#: and the fallback item are excluded: none names an entity a summary should
+#: describe by name.
+_RUST_NAMED_OWNERS: tuple[str, ...] = (
+    "struct",
+    "enum",
+    "union",
+    "trait",
+    "function",
+    "const",
+    "static",
+    "type",
+    "macro",
+)
+
+_DOC001_TARGET = RegionTarget(
+    kinds=("python_docstring",),
+    syntaxes=("python",),
+    owner_kinds=_PYTHON_DOC_OWNERS,
+)
+_DOC002_TARGET = RegionTarget(
+    kinds=("python_docstring", "rust_doc_comment"),
+    syntaxes=("python", "rust"),
+)
+_DOC003_TARGET = RegionTarget(
+    kinds=("python_docstring", "rust_doc_comment"),
+    syntaxes=("python", "rust"),
+    owner_kinds=_PYTHON_NAMED_OWNERS + _RUST_NAMED_OWNERS,
+)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -110,6 +147,39 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
         hook=banned_term.check_banned_term,
         textual=True,
     ),
+    BuiltinRule(
+        metadata=RuleMetadata(
+            code="DOC001",
+            name="summary-separation",
+            target=_DOC001_TARGET,
+            default_severity="warning",
+            description=descriptions.DOC001_DESCRIPTION,
+        ),
+        parser=rule_options.parse_documentation,
+        hook=documentation.check_summary_separation,
+    ),
+    BuiltinRule(
+        metadata=RuleMetadata(
+            code="DOC002",
+            name="summary-punctuation",
+            target=_DOC002_TARGET,
+            default_severity="warning",
+            description=descriptions.DOC002_DESCRIPTION,
+        ),
+        parser=rule_options.parse_documentation,
+        hook=documentation.check_summary_punctuation,
+    ),
+    BuiltinRule(
+        metadata=RuleMetadata(
+            code="DOC003",
+            name="owner-only-summary",
+            target=_DOC003_TARGET,
+            default_severity="warning",
+            description=descriptions.DOC003_DESCRIPTION,
+        ),
+        parser=rule_options.parse_documentation,
+        hook=documentation.check_owner_summary,
+    ),
 )
 
 
@@ -124,7 +194,7 @@ def inventory() -> tuple[RuleMetadata, ...]:
     Examples
     --------
     >>> [metadata.code for metadata in inventory()]
-    ['MD001', 'STY001', 'TERM001']
+    ['MD001', 'STY001', 'TERM001', 'DOC001', 'DOC002', 'DOC003']
     """
     return tuple(rule.metadata for rule in _BUILTIN_RULES)
 
@@ -140,7 +210,7 @@ def enabled_codes() -> tuple[str, ...]:
     Examples
     --------
     >>> enabled_codes()
-    ('MD001', 'STY001', 'TERM001')
+    ('MD001', 'STY001', 'TERM001', 'DOC001', 'DOC002', 'DOC003')
     """
     return tuple(rule.metadata.code for rule in _BUILTIN_RULES)
 
@@ -160,7 +230,9 @@ def registry_codes(registry: cabc.Sequence[RuleMetadata]) -> frozenset[str]:
 
     Examples
     --------
-    >>> registry_codes(inventory()) == frozenset({'MD001','STY001','TERM001'})
+    >>> registry_codes(inventory()) == frozenset(
+    ...     {'MD001','STY001','TERM001','DOC001','DOC002','DOC003'}
+    ... )
     True
     """
     return frozenset(metadata.code for metadata in registry)
