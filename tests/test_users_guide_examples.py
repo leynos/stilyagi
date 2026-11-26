@@ -36,8 +36,12 @@ _EXAMPLES = load_tested_examples()
 #: The elapsed time a documented record cannot pin.
 _ELAPSED = re.compile(r"elapsed_ms=\d+")
 
-#: The record each text block must start with. Exact messages are asserted by
-#: the command tests that produce them; this pins the record the guide shows.
+#: The record each remaining text block must start with. The two records the
+#: CLI can emit deterministically are compared in full by their emitters; the
+#: three below are produced by engine paths that need crafted inputs -- a
+#: synthetic span, a file changed between planning and writing, and a
+#: projection anomaly -- so their exact text is asserted by the tests that
+#: build those inputs, and this pins the record name the guide shows.
 _RECORD_PREFIXES: typ.Final[dict[str, str]] = {
     "verbose-progress-record": "INFO stilyagi.cli: ",
     "diff-rendered-record": "INFO stilyagi.check_outcome: ",
@@ -329,7 +333,32 @@ def _emit_diff_record(example: MarkedExample, root: pathlib.Path) -> None:
     ]
     assert records, "expected the diff run to emit a rendered record"
     actual = _collapse(_ELAPSED.sub("elapsed_ms=0", records[0]))
-    documented = _collapse(example.text)
+    documented = _collapse(_ELAPSED.sub("elapsed_ms=0", example.text))
+
+    assert actual == documented, (
+        f"expected the guide to show {actual!r}, not {documented!r}"
+    )
+
+
+def _emit_progress_record(example: MarkedExample, root: pathlib.Path) -> None:
+    """Emit the progress record and compare it with the documented line."""
+    completed = subprocess.run(
+        [sys.executable, "-m", "stilyagi", "check", "--verbose", "docs"],
+        cwd=root,
+        env=python_module_environment(),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+        timeout=120,
+    )
+    records = [
+        line
+        for line in completed.stderr.decode(errors="replace").splitlines()
+        if "check pass finished" in line
+    ]
+    assert records, "expected the verbose run to emit a progress record"
+    actual = _collapse(_ELAPSED.sub("elapsed_ms=0", records[0]))
+    documented = _collapse(_ELAPSED.sub("elapsed_ms=0", example.text))
 
     assert actual == documented, (
         f"expected the guide to show {actual!r}, not {documented!r}"
@@ -354,6 +383,7 @@ def _check_unknown_language(example: MarkedExample) -> None:
 
 _EMITTERS: typ.Final[dict[str, cabc.Callable[[MarkedExample, pathlib.Path], None]]] = {
     "diff-rendered-record": _emit_diff_record,
+    "verbose-progress-record": _emit_progress_record,
 }
 
 _EFFECTS: typ.Final[dict[str, cabc.Callable[[pathlib.Path], None]]] = {

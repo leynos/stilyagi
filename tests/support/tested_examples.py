@@ -26,13 +26,14 @@ USERS_GUIDE: typ.Final[pathlib.Path] = REPOSITORY_ROOT / "docs" / "users-guide.m
 
 #: A marker and its fence may be indented, as they are inside a list item.
 _MARKER = re.compile(r"^[ \t]*<!-- tested-example: (?P<name>[A-Za-z0-9_-]+) -->[ \t]*$")
-#: CommonMark opens a block with up to three spaces, then three or more
-#: backticks or tildes, then an optional info string.
-_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+#: CommonMark opens a block at any indentation inside its container, then with
+#: three or more backticks or tildes, then an optional info string.
+_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 #: A block's language tag must be one this loader can name.
 _LANGUAGE = re.compile(r"^[A-Za-z0-9_-]*$")
-#: A closing fence shares the same indentation limit as an opening one.
-_CLOSING_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})[ \t]*$")
+#: A closing fence is recognized at any indentation; `_closes` measures it
+#: against the opening fence's container.
+_CLOSING_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*$")
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -198,7 +199,7 @@ class _DocumentScan:
             raise ValueError(message)
         opener = _Opener(
             fence=fence,
-            indent=len(fence.group("indent")),
+            indent=fence.group("indent"),
             language=language,
         )
         example, next_index = _read_block(self.lines, index, opener, self.pending)
@@ -216,7 +217,7 @@ class _Opener:
     """
 
     fence: re.Match[str]
-    indent: int
+    indent: str
     language: str
 
 
@@ -247,10 +248,8 @@ def _read_block(
     """
     body: list[str] = []
     cursor = index + 1
-    while cursor < len(lines) and not _closes(
-        lines[cursor], opener.fence.group("fence")
-    ):
-        body.append(_strip_indent(lines[cursor], opener.indent))
+    while cursor < len(lines) and not _closes(lines[cursor], opener):
+        body.append(_strip_indent(lines[cursor], len(opener.indent)))
         cursor += 1
     if cursor == len(lines):
         message = f"marker {name!r} has no closing fence"
@@ -263,13 +262,27 @@ def _read_block(
     return example, cursor + 1
 
 
-def _closes(line: str, opener: str) -> bool:
-    """Return whether ``line`` closes a block opened by ``opener``."""
+def _closes(line: str, opener: _Opener) -> bool:
+    """Return whether ``line`` closes the block ``opener`` started.
+
+    The closing fence must use the same character, repeat it at least as many
+    times, and be indented no more than three spaces beyond the opening
+    fence's container. That keeps a deeper-indented fence inside the block,
+    which is what a four-space-indented line in a column-zero block is.
+
+    Returns
+    -------
+    bool
+        Whether ``line`` ends the block.
+    """
     closing = _CLOSING_FENCE.match(line)
     if closing is None:
         return False
     fence = closing.group("fence")
-    return fence[0] == opener[0] and len(fence) >= len(opener)
+    opener_fence = opener.fence.group("fence")
+    if fence[0] != opener_fence[0] or len(fence) < len(opener_fence):
+        return False
+    return len(closing.group("indent")) <= len(opener.indent) + 3
 
 
 def _strip_indent(line: str, width: int) -> str:

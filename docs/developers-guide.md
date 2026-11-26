@@ -2421,10 +2421,12 @@ standard input, and a recorded log line is compared with the record the tool
 emits. Each shell block has a recorded exit-status expectation per command,
 including one per pipeline segment, so a command that starts failing cannot
 pass as a documented `1` or `2`. A block with no expectation, or a language
-with no check, fails rather than passing silently. Because the Python blocks
-execute, they catch drift in the API they demonstrate: the IR schema-version
-assertion in the guide had gone stale and was corrected when this coverage was
-added.
+with no check, fails rather than passing silently. The two `git apply` lines
+accept status `128` because no shipped rule proposes a safe fix, so `--diff`
+previews an empty patch and git refuses it; that expectation is recorded with
+its reason rather than left open. Because the Python blocks execute, they catch
+drift in the API they demonstrate: the IR schema-version assertion in the guide
+had gone stale and was corrected when this coverage was added.
 
 The loader covers the documents that call it. A user-facing fence in another
 document still needs a marker and a test that loads it before its coverage is

@@ -373,7 +373,8 @@ emitting logger, and the message:
 
 <!-- tested-example: verbose-progress-record -->
 ```text
-INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1, operation='collect_checked_files')
+INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1,
+operation='collect_checked_files')
 ```
 
 The parenthesized tail is the record's structured fields. They carry the values

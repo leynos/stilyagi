@@ -268,3 +268,23 @@ def test_a_four_space_indented_fence_does_not_close_a_block(
     assert examples["deep"].lines == ("    ```", "x"), (
         "expected the four-space-indented fence to stay in the block"
     )
+
+
+def test_a_deeply_indented_list_item_loads_its_block(tmp_path: pathlib.Path) -> None:
+    """A fence four spaces inside a list item is recognized and dedented."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "- an item:\n"
+        "\n"
+        "    <!-- tested-example: deep-list -->\n"
+        "    ```python\n"
+        "    value = 1\n"
+        "    ```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["deep-list"].lines == ("value = 1",), (
+        "expected the list item's four-space indentation to be removed"
+    )
