@@ -35,8 +35,9 @@ _LANGUAGE = re.compile(r"^[A-Za-z0-9_-]*$")
 #: against the opening fence's container.
 _CLOSING_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*$")
 #: A list item, whose content column is the indentation a nested fence uses.
+#: A marker with no content is still an item; `---` and `-foo` are not.
 _LIST_ITEM = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ \t]+)\S"
+    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ \t]+(?=\S)|[ \t]*$)"
 )
 
 
@@ -162,19 +163,20 @@ class _DocumentScan:
         """Record the content column of the list item a fence may sit in.
 
         A list item's content starts after its marker, and a fence may be
-        indented up to three spaces beyond that column. A non-blank line at
-        column zero that is not a list item ends the list, so a top-level
-        indented code block cannot open a fenced block.
+        indented up to three spaces beyond that column. A line indented beyond
+        that limit is indented code, so literal list-like text inside it is not
+        a list and its fences cannot open a block. A non-blank line at column
+        zero that is not a list item ends the list.
         """
         if not line.strip():
             return
+        indentation = len(line) - len(line.lstrip(" \t"))
+        if indentation > self.container + 3:
+            return
         item = _LIST_ITEM.match(line)
         if item is not None:
-            self.container = (
-                len(item.group("indent"))
-                + len(item.group("marker"))
-                + len(item.group("gap"))
-            )
+            gap = max(len(item.group("gap") or ""), 1)
+            self.container = len(item.group("indent")) + len(item.group("marker")) + gap
             return
         if not line.startswith((" ", "\t")):
             self.container = 0

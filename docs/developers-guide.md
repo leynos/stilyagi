@@ -1069,10 +1069,24 @@ value for a one-line failure belongs to the command adapter, which owns the
 standard-error contract.
 
 The command side is an adapter and must stay outside the domain:
-`cli_rule_args.py` parses the two commands, `rule_commands.py` orchestrates
-them, and `rule_rendering.py` owns the text columns and the schema-version-1
-JSON envelopes. `stilyagi.cli` dispatches `rule` and `rules` before it builds
-`CheckOptions`; `check` remains the fallthrough command.
+`cli_rule_args.py` parses the two commands, and `rule_commands.py` orchestrates
+them. `rule_rendering.py` owns the text columns and the public
+`render_rule_list` and `render_rule_detail` entry points.
+`rule_rendering_json.py` owns the schema-version-1 encoding through
+`SCHEMA_VERSION`, `envelope`, `descriptors`, and `descriptor`. `stilyagi.cli`
+dispatches `rule` and `rules` before it builds `CheckOptions`; `check` remains
+the fallthrough command.
+
+Four test-support modules carry the suite's shared behaviour.
+`tests/support/import_probe.py` provides `run_import_probe`, which imports the
+command line in a fresh interpreter and fails on any file, configuration,
+extraction, rule, plugin, or cache side effect. `tests/support/guide_shell.py`
+provides `check_shell` and `apply_effect`, which run a documented shell example
+with its pipelines, redirection, and standard input and check the files it
+promises to write. `tests/support/rule_command_support.py` provides in-memory
+helpers that invoke the discovery commands and capture their streams.
+`tests/support/rule_contract_support.py` provides the contract-test helpers
+that lint a source with a selected rule and read its first reporting example.
 
 Re-use policy: do not add a second list of rule codes or a second option
 parser. Extend the description record and the existing typed parser together,

@@ -287,3 +287,35 @@ def test_an_indented_code_block_is_not_an_opening_fence(
     examples = load_tested_examples(path)
 
     assert not examples, "expected the indented code block to hold no example"
+
+
+def test_a_marker_only_list_item_still_holds_its_block(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A bare hyphen is a list item, so its nested block still opens."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "-\n\n  <!-- tested-example: bare-item -->\n  ```python\n  value = 1\n  ```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["bare-item"].lines == ("value = 1",), (
+        "expected a marker-only list item to hold its block"
+    )
+
+
+def test_list_like_text_inside_indented_code_is_not_a_list(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Indented code is not a list, so its fences cannot open a block."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "Example:\n\n    - not a list\n    ```text\n    literal\n\nAfterwards.\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert not examples, "expected the indented code to hold no example"
