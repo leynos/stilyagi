@@ -4,13 +4,14 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `5840ca5a` (2026-11-26).
+default `make test` acceptance record (E6) all pass at `5d0df0df` (2026-11-26).
 E6 was observed at `57b162e7`, after the five formal-review repairs at
 `8bec6f5a`, after the hosted typecheck repair at `9c8da76f`, after the pipeline
 and exit-status repairs at `1cd31061`, at `a600befe` after the shell-runner
-split, at `e5390948` after the config-JSON comparison, and at the final code
-candidate `5840ca5a` after the container-relative fence repair; the last log is
-`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review11.out`. The only
+split, at `e5390948` after the config-JSON comparison, at `5840ca5a` after the
+container-relative fence repair, and at the final code candidate `5d0df0df`
+after the Windows launcher repair; the last log is
+`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review12.out`. The only
 commit after that code candidate records this evidence and changes no code or
 document the suite reads.
 
@@ -390,6 +391,12 @@ before continuing.
   tests, every Rust doctest, 2 120 pytest tests, and 219 Python doctests with 3
   skips; log
   `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review11.out`.
+- [x] (2026-11-26) A local review found the console-script helper assumed a
+  bare `stilyagi` beside the interpreter, which Windows does not install; it
+  now selects `stilyagi.exe` on that platform. **E6 passes at `5d0df0df`**:
+  `make test` exits 0 with 371/371 nextest tests, every Rust doctest, 2 120
+  pytest tests, and 219 Python doctests with 3 skips; log
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review12.out`.
 
 ## Surprises & discoveries
 
