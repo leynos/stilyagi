@@ -173,6 +173,39 @@ def _emit_progress_record(example: MarkedExample, root: pathlib.Path) -> None:
     )
 
 
+def _emit_config_json(example: MarkedExample, root: pathlib.Path) -> None:
+    """Emit the effective-config JSON and compare it with the documented block.
+
+    JSON object key order is not a contract, so both sides are parsed and
+    compared as values rather than as text.
+    """
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "stilyagi",
+            "config",
+            "lint.select",
+            "--output-format",
+            "json",
+        ],
+        cwd=root,
+        env=python_module_environment(),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode == 0, (
+        "expected the config query to succeed; got "
+        f"{completed.stderr.decode(errors='replace')}"
+    )
+
+    assert json.loads(completed.stdout) == json.loads(example.text), (
+        "expected the guide's config JSON to match the command's output"
+    )
+
+
 def _check_record(example: MarkedExample) -> None:
     """Require a documented output record to start with its real record name."""
     prefix = _RECORD_PREFIXES.get(example.name)
@@ -190,6 +223,7 @@ def _check_unknown_language(example: MarkedExample) -> None:
 
 
 _EMITTERS: typ.Final[dict[str, cabc.Callable[[MarkedExample, pathlib.Path], None]]] = {
+    "config-effective-json": _emit_config_json,
     "diff-rendered-record": _emit_diff_record,
     "verbose-progress-record": _emit_progress_record,
 }
