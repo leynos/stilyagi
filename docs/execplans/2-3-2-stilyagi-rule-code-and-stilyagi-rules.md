@@ -4,12 +4,13 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `e5390948` (2026-11-26).
+default `make test` acceptance record (E6) all pass at `5840ca5a` (2026-11-26).
 E6 was observed at `57b162e7`, after the five formal-review repairs at
 `8bec6f5a`, after the hosted typecheck repair at `9c8da76f`, after the pipeline
 and exit-status repairs at `1cd31061`, at `a600befe` after the shell-runner
-split, and at the final code candidate `e5390948`; the last log is
-`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review10.out`. The only
+split, at `e5390948` after the config-JSON comparison, and at the final code
+candidate `5840ca5a` after the container-relative fence repair; the last log is
+`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review11.out`. The only
 commit after that code candidate records this evidence and changes no code or
 document the suite reads.
 
@@ -380,6 +381,15 @@ before continuing.
   at `e5390948`**: `make test` exits 0 with 371/371 nextest tests, every Rust
   doctest, 2 119 pytest tests, and 219 Python doctests with 3 skips; log
   `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review10.out`.
+- [x] (2026-11-26) The third formal review found one defect: accepting an
+  opening fence at any indentation made a top-level four-space code block fail
+  to load when it contained a literal fence line. The scan tracks the enclosing
+  list item's content column and accepts a fence only within three spaces of
+  it; a regression loads such a code block holding literal backtick and tilde
+  lines. **E6 passes at `5840ca5a`**: `make test` exits 0 with 371/371 nextest
+  tests, every Rust doctest, 2 120 pytest tests, and 219 Python doctests with 3
+  skips; log
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review11.out`.
 
 ## Surprises & discoveries
 
