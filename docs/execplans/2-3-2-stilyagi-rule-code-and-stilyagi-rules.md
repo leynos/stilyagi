@@ -4,12 +4,12 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `a600befe` (2026-11-26).
+default `make test` acceptance record (E6) all pass at `e5390948` (2026-11-26).
 E6 was observed at `57b162e7`, after the five formal-review repairs at
 `8bec6f5a`, after the hosted typecheck repair at `9c8da76f`, after the pipeline
-and exit-status repairs at `1cd31061`, and at the final code candidate
-`a600befe`; the last log is
-`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review9.out`. The only
+and exit-status repairs at `1cd31061`, at `a600befe` after the shell-runner
+split, and at the final code candidate `e5390948`; the last log is
+`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review10.out`. The only
 commit after that code candidate records this evidence and changes no code or
 document the suite reads.
 
@@ -372,6 +372,14 @@ before continuing.
   exits 0 with 371/371 nextest tests, every Rust doctest, 2 119 pytest tests,
   and 219 Python doctests with 3 skips; log
   `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review9.out`.
+- [x] (2026-11-26) A fourth local review found the config JSON example was
+  parsed but never compared with the command's output; it now runs
+  `stilyagi config lint.select --output-format json` and compares the two as
+  JSON values. Hosted CodeScene then rejected the head for duplication between
+  the two list-indent cases, which are now one parameterized test. **E6 passes
+  at `e5390948`**: `make test` exits 0 with 371/371 nextest tests, every Rust
+  doctest, 2 119 pytest tests, and 219 Python doctests with 3 skips; log
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review10.out`.
 
 ## Surprises & discoveries
 
