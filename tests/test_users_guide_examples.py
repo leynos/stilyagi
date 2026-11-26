@@ -166,26 +166,26 @@ def _run_command(example: MarkedExample, line: str, root: pathlib.Path) -> None:
         return
     source = _redirection(line, "<")
     destination = _redirection(line, ">")
-    stdin = subprocess.DEVNULL if source is None else (root / source).open("rb")
-    stdout = (
-        subprocess.DEVNULL if destination is None else (root / destination).open("wb")
+    source_stream = None if source is None else (root / source).open("rb")
+    destination_stream = (
+        None if destination is None else (root / destination).open("wb")
     )
     try:
         completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
             invocation,
             cwd=root,
             env=python_module_environment(),
-            stdin=stdin,
-            stdout=stdout,
+            stdin=source_stream or subprocess.DEVNULL,
+            stdout=destination_stream or subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             check=False,
             timeout=120,
         )
     finally:
-        if source is not None:
-            stdin.close()
-        if destination is not None:
-            stdout.close()
+        if source_stream is not None:
+            source_stream.close()
+        if destination_stream is not None:
+            destination_stream.close()
 
     assert completed.returncode in {0, 1, 2}, (
         f"expected {example.name} to exit 0, 1, or 2; got "
