@@ -46,8 +46,31 @@ _RECORD_PREFIXES: typ.Final[dict[str, str]] = {
     "fix-error-changed-on-disk": "fix-error/changed-on-disk: ",
 }
 
-#: Shell utilities a transcript may show beside a Stilyagi command.
+#: Shell utilities a transcript may show beside a Stilyagi command. Only
+#: `git` runs as part of a documented pipeline; the rest are illustrative.
 _SHELL_COMPANIONS: typ.Final[frozenset[str]] = frozenset({"git", "echo"})
+
+#: Utilities a transcript shows but this module does not run.
+_ILLUSTRATIVE: typ.Final[frozenset[str]] = _SHELL_COMPANIONS - {"git"}
+
+#: The status each command line may exit with, in the order the block lists
+#: them. A pipeline contributes one expectation per segment. `git apply`
+#: accepts 0 or 128 in the pipe example because no shipped rule proposes a
+#: safe fix, so the previewed patch is empty and git rejects it.
+_ANY: typ.Final[frozenset[int]] = frozenset({0, 1, 2})
+_OK: typ.Final[frozenset[int]] = frozenset({0})
+_EXPECTED_STATUSES: typ.Final[dict[str, tuple[frozenset[int], ...]]] = {
+    "rules-invocations": (_OK,) * 5,
+    "rule-invocations": (_OK,) * 2,
+    "rule-unknown-code": (frozenset({2}),),
+    "smoke-cli-entrypoint": (_OK,),
+    "legacy-smoke-module-removal": (_OK,),
+    "dump-ir-invocations": (_OK,) * 3,
+    "diff-patch-to-file": (_OK, frozenset({0, 128})),
+    "diff-patch-pipe": (_OK, frozenset({0, 128})),
+    "fix-stdin-rewrite": (_OK,),
+    "check-exit-code-invocations": (_OK,) * 8,
+}
 
 
 def _assert_stdin_rewrite(root: pathlib.Path) -> None:
@@ -140,43 +163,51 @@ def _redirection(line: str, marker: str) -> pathlib.Path | None:
     return pathlib.Path(line.split(marker, 1)[1].strip().split()[0])
 
 
-def _invocation(line: str) -> list[str] | None:
-    """Return the interpreter invocation a transcript line names."""
-    tokens = shlex.split(_command_part(line))
+def _invocation(segment: str) -> list[str] | None:
+    """Return the interpreter invocation one pipeline segment names."""
+    tokens = shlex.split(_command_part(segment))
+    if not tokens:
+        return None
     if tokens[0] == "stilyagi":
         return [sys.executable, "-m", "stilyagi", *tokens[1:]]
     if tokens[0] == "python":
         return [sys.executable, *tokens[1:]]
+    if tokens[0] == "git":
+        return ["git", *tokens[1:]]
     return None
 
 
-def _run_command(example: MarkedExample, line: str, root: pathlib.Path) -> None:
-    """Run one Stilyagi command and require a documented exit status.
-
-    The guide documents statuses `0`, `1`, and `2`; a traceback or any other
-    status is not a documented outcome. Redirection and standard input are
-    honoured so a transcript's pipelines and file effects are exercised.
-    """
-    invocation = _invocation(line)
-    if invocation is None:
-        program = shlex.split(_command_part(line))[0]
-        assert program in _SHELL_COMPANIONS, (
-            f"expected {example.name} to use a documented command, not {program!r}"
-        )
-        return
-    source = _redirection(line, "<")
-    destination = _redirection(line, ">")
+def _run_segment(
+    segment: str,
+    root: pathlib.Path,
+    stdin_bytes: bytes | None,
+) -> tuple[int, bytes]:
+    """Run one pipeline segment and return its status and standard output."""
+    invocation = _invocation(segment)
+    assert invocation is not None, f"expected a documented command in {segment!r}"
+    source = _redirection(segment, "<")
+    destination = _redirection(segment, ">")
     source_stream = None if source is None else (root / source).open("rb")
     destination_stream = (
         None if destination is None else (root / destination).open("wb")
     )
+    if source_stream is not None:
+        stdin: object = source_stream
+        input_bytes = None
+    elif stdin_bytes is not None:
+        stdin = None
+        input_bytes = stdin_bytes
+    else:
+        stdin = subprocess.DEVNULL
+        input_bytes = None
     try:
         completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
             invocation,
             cwd=root,
             env=python_module_environment(),
-            stdin=source_stream or subprocess.DEVNULL,
-            stdout=destination_stream or subprocess.DEVNULL,
+            stdin=stdin,
+            input=input_bytes,
+            stdout=destination_stream or subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
             timeout=120,
@@ -187,25 +218,58 @@ def _run_command(example: MarkedExample, line: str, root: pathlib.Path) -> None:
         if destination_stream is not None:
             destination_stream.close()
 
-    assert completed.returncode in {0, 1, 2}, (
-        f"expected {example.name} to exit 0, 1, or 2; got "
-        f"{completed.returncode} and {completed.stderr.decode(errors='replace')}"
-    )
     assert b"Traceback" not in completed.stderr, (
-        f"expected {example.name} not to crash; got "
+        f"expected {segment!r} not to crash; got "
         f"{completed.stderr.decode(errors='replace')}"
     )
+    return completed.returncode, completed.stdout or b""
+
+
+def _run_command(
+    example: MarkedExample,
+    line: str,
+    root: pathlib.Path,
+    expected: cabc.Sequence[frozenset[int]],
+) -> None:
+    """Run one documented command line, pipeline and redirections included.
+
+    Every segment must exit with a status the guide states for that block; a
+    block with no recorded expectation fails, so a new example cannot be
+    exercised without deciding what it promises.
+    """
+    standard_output: bytes | None = None
+    segments = line.split("|")
+    assert len(segments) == len(expected), (
+        f"expected {example.name} to document {len(segments)} statuses"
+    )
+    for position, segment in enumerate(segments):
+        status, standard_output = _run_segment(segment, root, standard_output)
+        assert status in expected[position], (
+            f"expected {example.name} segment {position} to exit "
+            f"{sorted(expected[position])}, got {status}"
+        )
 
 
 def _check_shell(example: MarkedExample, root: pathlib.Path) -> None:
     """Run every command in a transcript and parse it as well."""
+    expected = _EXPECTED_STATUSES.get(example.name)
+    assert expected is not None, f"expected a documented exit status for {example.name}"
     commands = _commands(example)
     assert commands, f"expected {example.name} to show a command"
+    position = 0
     for line in commands:
-        _run_command(example, line, root)
+        tokens = shlex.split(_command_part(line))
+        if tokens and tokens[0] in _ILLUSTRATIVE:
+            continue
+        count = len(line.split("|"))
+        _run_command(example, line, root, expected[position : position + count])
+        position += count
         command = _command_part(line)
         if command:
             _check_parsed(example, command)
+    assert position == len(expected), (
+        f"expected {example.name} to document {position} statuses"
+    )
 
 
 def _check_parsed(example: MarkedExample, command: str) -> None:

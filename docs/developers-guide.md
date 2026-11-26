@@ -2416,9 +2416,12 @@ example there fails test collection rather than passing unexercised.
 `tests/test_users_guide_examples.py` consumes every marker the loader returns,
 dispatching on the fence language: Python blocks run in a fresh interpreter,
 TOML and JSON blocks are parsed, Markdown blocks go through the extractor,
-shell lines are parsed by the real argument parser, and a recorded log line
-must start with the record the tool emits. An example whose language has no
-check fails, so a marked block cannot ship unread. Because the Python blocks
+shell lines run as their real invocation with pipelines, redirection, and
+standard input, and a recorded log line is compared with the record the tool
+emits. Each shell block has a recorded exit-status expectation per command,
+including one per pipeline segment, so a command that starts failing cannot
+pass as a documented `1` or `2`. A block with no expectation, or a language
+with no check, fails rather than passing silently. Because the Python blocks
 execute, they catch drift in the API they demonstrate: the IR schema-version
 assertion in the guide had gone stale and was corrected when this coverage was
 added.
