@@ -34,6 +34,10 @@ _LANGUAGE = re.compile(r"^[A-Za-z0-9_-]*$")
 #: A closing fence is recognized at any indentation; `_closes` measures it
 #: against the opening fence's container.
 _CLOSING_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*$")
+#: A list item, whose content column is the indentation a nested fence uses.
+_LIST_ITEM = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ \t]+)\S"
+)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -122,6 +126,7 @@ class _DocumentScan:
     document: str
     examples: dict[str, MarkedExample] = dc.field(default_factory=dict)
     pending: str | None = None
+    container: int = 0
 
     def collect(self) -> dict[str, MarkedExample]:
         """Scan the document and return the blocks closed so far.
@@ -145,12 +150,34 @@ class _DocumentScan:
         if marker is not None:
             self._accept_marker(marker.group("name"))
             return index + 1
+        self._track_container(self.lines[index])
         fence = _FENCE.match(self.lines[index])
-        if fence is None:
+        if fence is None or len(fence.group("indent")) > self.container + 3:
             self._require_pending_block()
             return index + 1
         language = self._accept_language(fence)
         return self._consume_block(index, fence, language)
+
+    def _track_container(self, line: str) -> None:
+        """Record the content column of the list item a fence may sit in.
+
+        A list item's content starts after its marker, and a fence may be
+        indented up to three spaces beyond that column. A non-blank line at
+        column zero that is not a list item ends the list, so a top-level
+        indented code block cannot open a fenced block.
+        """
+        if not line.strip():
+            return
+        item = _LIST_ITEM.match(line)
+        if item is not None:
+            self.container = (
+                len(item.group("indent"))
+                + len(item.group("marker"))
+                + len(item.group("gap"))
+            )
+            return
+        if not line.startswith((" ", "\t")):
+            self.container = 0
 
     def _require_pending_block(self) -> None:
         """Reject a marker whose next line is not its fenced block.

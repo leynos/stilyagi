@@ -272,3 +272,18 @@ def test_a_four_space_indented_fence_does_not_close_a_block(
     assert examples["deep"].lines == ("    ```", "x"), (
         "expected the four-space-indented fence to stay in the block"
     )
+
+
+def test_an_indented_code_block_is_not_an_opening_fence(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A top-level four-space code block may contain literal fence lines."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "Example:\n\n    ```text\n    literal\n    ~~~\n\nAfterwards.\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert not examples, "expected the indented code block to hold no example"
