@@ -4,10 +4,13 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `8bec6f5a` (2026-11-26).
-E6 was observed separately at `57b162e7` and at this head, the latter after
-five formal-review repairs; the log is
-`/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6.out`.
+default `make test` acceptance record (E6) all pass on the final candidate tree
+(2026-11-26). E6 was observed at `57b162e7`, at `8bec6f5a` after the five
+formal-review repairs, and at `9c8da76f` after the hosted typecheck repair; the
+last of those logs is
+`/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6b.out`. This plan
+record is the only difference between that tested tree and the head commit, and
+it was itself gated on the tree recorded below.
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking
@@ -341,6 +344,14 @@ before continuing.
   doctests with 3 skips. Log:
   `/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6.out`. The plan
   status and roadmap item 2.3.2 are restored to complete on that evidence.
+- [x] (2026-11-26) Hosted `lint-test` rejected `8bec6f5a` on typecheck: the
+  redirected streams were inferred as `int | BufferedReader`, because the
+  `DEVNULL` fallback is an int, so calling `close()` on them was unresolved.
+  The file objects are now held in their own names and `DEVNULL` is chosen at
+  the call. **E6 passes again at `9c8da76f`**: `make test` exits 0 with 371/371
+  nextest tests, every Rust doctest, 2 118 pytest tests, and 219 Python
+  doctests with 3 skips; log
+  `/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6b.out`.
 
 ## Surprises & discoveries
 
