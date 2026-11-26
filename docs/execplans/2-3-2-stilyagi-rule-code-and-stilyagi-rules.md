@@ -4,11 +4,12 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `1cd31061` (2026-11-26).
-E6 was observed at `57b162e7`, at `8bec6f5a` after the five formal-review
-repairs, at `9c8da76f` after the hosted typecheck repair, and at `1cd31061`
-after the pipeline and exit-status repairs; the last log is
-`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review7.out`. The only
+default `make test` acceptance record (E6) all pass at `a600befe` (2026-11-26).
+E6 was observed at `57b162e7`, after the five formal-review repairs at
+`8bec6f5a`, after the hosted typecheck repair at `9c8da76f`, after the pipeline
+and exit-status repairs at `1cd31061`, and at the final code candidate
+`a600befe`; the last log is
+`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review9.out`. The only
 commit after that code candidate records this evidence and changes no code or
 document the suite reads.
 
@@ -361,6 +362,16 @@ before continuing.
   passes at `1cd31061`**: `make test` exits 0 with 371/371 nextest tests, every
   Rust doctest, 2 118 pytest tests, and 219 Python doctests with 3 skips; log
   `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review7.out`.
+- [x] (2026-11-26) A third local review found that fences indented inside deep
+  list items were ignored and that the remaining text records were only
+  prefix-checked. Fence indentation is now measured against the container, the
+  verbose progress record is compared with the emitted line, and the three
+  records that need crafted engine inputs keep a documented prefix check. A
+  Pylint line limit then moved the shell runner into
+  `tests/support/guide_shell.py`. **E6 passes at `a600befe`**: `make test`
+  exits 0 with 371/371 nextest tests, every Rust doctest, 2 119 pytest tests,
+  and 219 Python doctests with 3 skips; log
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review9.out`.
 
 ## Surprises & discoveries
 
