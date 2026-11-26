@@ -199,23 +199,27 @@ def test_a_language_tagged_fence_inside_a_block_stays_content(
     )
 
 
-def test_an_indented_marker_and_fence_are_dedented(tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize("indent", ["  ", "    "], ids=["two-spaces", "four-spaces"])
+def test_an_indented_marker_and_fence_are_dedented(
+    indent: str,
+    tmp_path: pathlib.Path,
+) -> None:
     """A block nested in a list item loads its content without the list indent."""
     path = tmp_path / "guide.md"
     path.write_text(
         "- an item:\n"
         "\n"
-        "  <!-- tested-example: indented -->\n"
-        "  ```python\n"
-        "  value = 1\n"
-        "  ```\n",
+        f"{indent}<!-- tested-example: indented -->\n"
+        f"{indent}```python\n"
+        f"{indent}value = 1\n"
+        f"{indent}```\n",
         encoding="utf-8",
     )
 
     examples = load_tested_examples(path)
 
     assert examples["indented"].lines == ("value = 1",), (
-        "expected the list indentation to be removed from the block"
+        f"expected the {len(indent)}-space list indentation to be removed"
     )
 
 
@@ -267,24 +271,4 @@ def test_a_four_space_indented_fence_does_not_close_a_block(
 
     assert examples["deep"].lines == ("    ```", "x"), (
         "expected the four-space-indented fence to stay in the block"
-    )
-
-
-def test_a_deeply_indented_list_item_loads_its_block(tmp_path: pathlib.Path) -> None:
-    """A fence four spaces inside a list item is recognized and dedented."""
-    path = tmp_path / "guide.md"
-    path.write_text(
-        "- an item:\n"
-        "\n"
-        "    <!-- tested-example: deep-list -->\n"
-        "    ```python\n"
-        "    value = 1\n"
-        "    ```\n",
-        encoding="utf-8",
-    )
-
-    examples = load_tested_examples(path)
-
-    assert examples["deep-list"].lines == ("value = 1",), (
-        "expected the list item's four-space indentation to be removed"
     )
