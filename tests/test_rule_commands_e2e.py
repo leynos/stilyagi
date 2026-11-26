@@ -22,8 +22,18 @@ if typ.TYPE_CHECKING:
 
 
 def _console_script() -> pathlib.Path:
-    """Return the installed console script beside the running interpreter."""
-    candidate = pathlib.Path(sys.executable).with_name("stilyagi")
+    """Return the installed console script beside the running interpreter.
+
+    Windows installs console scripts with an `.exe` suffix, so the bare name
+    is not the launcher a test can execute there.
+
+    Returns
+    -------
+    pathlib.Path
+        The launcher beside the running interpreter.
+    """
+    name = "stilyagi.exe" if sys.platform == "win32" else "stilyagi"
+    candidate = pathlib.Path(sys.executable).with_name(name)
     assert candidate.is_file(), f"expected the installed console script at {candidate}"
     return candidate
 
