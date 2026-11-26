@@ -3,14 +3,11 @@
 This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
-Status: code complete; E6 pending at the branch head. The default `make test`
-acceptance record was last observed at `57b162e7` (2026-11-25). Two code
-commits follow it: `ba3ab43e`, which repairs seven local-review findings and is
-green on hosted `lint-test`, CodeScene, and all three `release-smoke` jobs, and
-the current head, which repairs the third formal review. Because the plan's own
-E6 rule does not carry a pass at one commit over to another, item 2.3.2 stays
-unchecked until a default `make test` passes at the head and its log is
-recorded below.
+Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
+default `make test` acceptance record (E6) all pass at `8bec6f5a` (2026-11-26).
+E6 was observed separately at `57b162e7` and at this head, the latter after
+five formal-review repairs; the log is
+`/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6.out`.
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking
@@ -329,8 +326,21 @@ before continuing.
   `make typecheck`, and `make lint` (exit 0) pass. `make test` reaches 2 110
   passed with four failures, all in `tests/test_lint_policy_behaviour.py` and
   all reported as `timed out after 240 s` while the shared admission queue held
-  300–400 requests; that file is untouched from `origin/main`. A retry in a
-  shallower window is recorded once it completes.
+  300–400 requests; that file is untouched from `origin/main`.
+- [x] (2026-11-26) Third formal review: five inline findings and one
+  documentation check, all repaired. The loader now rejects a marker whose next
+  line is prose, accepts up to three spaces before a fence and a
+  whitespace-separated info string, rejects an unsupported info string, and
+  refuses to close a block at a four-space-indented fence. The guide-example
+  test runs the documented shell workflows with their redirection and standard
+  input, asserts their exit statuses, checks the files they write, and compares
+  the diff record against the record the tool emits — which caught a stale
+  logger name in the guide. `make lint` passes at the repair tree.
+- [x] (2026-11-26) **E6 passes at `8bec6f5a`**: `make test` exits 0 with 371/371
+  nextest tests, every Rust doctest, 2 118 pytest tests, and 219 Python
+  doctests with 3 skips. Log:
+  `/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review6.out`. The plan
+  status and roadmap item 2.3.2 are restored to complete on that evidence.
 
 ## Surprises & discoveries
 
