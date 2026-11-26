@@ -3,11 +3,14 @@
 This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
-Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass on the code candidate
-`57b162e7` (2026-11-25). Later commits on the branch touch only this plan; each
-one is gated on its own tree, and E6 is re-recorded for any commit that changes
-code or a document the test suite reads.
+Status: code complete; E6 pending at the branch head. The default `make test`
+acceptance record was last observed at `57b162e7` (2026-11-25). Two code
+commits follow it: `ba3ab43e`, which repairs seven local-review findings and is
+green on hosted `lint-test`, CodeScene, and all three `release-smoke` jobs, and
+the current head, which repairs the third formal review. Because the plan's own
+E6 rule does not carry a pass at one commit over to another, item 2.3.2 stays
+unchecked until a default `make test` passes at the head and its log is
+recorded below.
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking

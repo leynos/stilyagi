@@ -733,7 +733,8 @@ emitted once per `--diff` run:
 
 <!-- tested-example: diff-rendered-record -->
 ```text
-INFO stilyagi.cli: diff rendered (elapsed_ms=0, operation='render_diff', patch_byte_count=0, patched_files=0, planned_files=1)
+INFO stilyagi.check_outcome: diff rendered (elapsed_ms=0, operation='render_diff',
+patch_byte_count=0, patched_files=0, planned_files=1)
 ```
 
 | Field              | Meaning                                                     |

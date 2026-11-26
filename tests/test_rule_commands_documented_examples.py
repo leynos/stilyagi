@@ -153,6 +153,16 @@ def _unexpected_check(*_args: object, **_kwargs: object) -> typ.NoReturn:
             "no closing fence",
             id="unclosed-long-fence",
         ),
+        pytest.param(
+            "<!-- tested-example: a -->\nprose\n```text\nx\n```\n",
+            "names no fenced block",
+            id="marker-then-prose",
+        ),
+        pytest.param(
+            '<!-- tested-example: a -->\n```python title="x"\nx\n```\n',
+            "unsupported fence info string",
+            id="unsupported-info-string",
+        ),
     ],
 )
 def test_the_loader_rejects_a_malformed_document(
@@ -223,4 +233,38 @@ def test_a_longer_fence_keeps_a_shorter_fence_of_either_character(
 
     assert examples["long"].lines == ("```python", "~~~"), (
         "expected shorter fences of either character to stay in the block"
+    )
+
+
+def test_a_space_before_the_language_tag_is_accepted(
+    tmp_path: pathlib.Path,
+) -> None:
+    """CommonMark allows whitespace between the fence and its info string."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "<!-- tested-example: spaced -->\n``` python\nvalue = 1\n```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["spaced"].language == "python", (
+        "expected the trimmed info string to name the language"
+    )
+
+
+def test_a_four_space_indented_fence_does_not_close_a_block(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Only a fence indented up to three spaces can close a block."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "<!-- tested-example: deep -->\n```text\n    ```\nx\n```\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["deep"].lines == ("    ```", "x"), (
+        "expected the four-space-indented fence to stay in the block"
     )

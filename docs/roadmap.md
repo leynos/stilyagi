@@ -218,7 +218,7 @@ the rule engine, diagnostics model, and safe-fix machinery. See
   - Reuse the same policy targeting and source-backed diagnostic substrate that
     later opinionated packs consume.
   - Success: the slice solves real documentation linting problems on day one.
-- [x] 2.3.2. Implement `stilyagi rule CODE` and `stilyagi rules` for builtin
+- [ ] 2.3.2. Implement `stilyagi rule CODE` and `stilyagi rules` for builtin
   rules. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.3.1.
   - Include policy configuration, capability requirements, fixability,

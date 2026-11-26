@@ -26,11 +26,13 @@ USERS_GUIDE: typ.Final[pathlib.Path] = REPOSITORY_ROOT / "docs" / "users-guide.m
 
 #: A marker and its fence may be indented, as they are inside a list item.
 _MARKER = re.compile(r"^[ \t]*<!-- tested-example: (?P<name>[A-Za-z0-9_-]+) -->[ \t]*$")
-#: CommonMark opens a block with three or more backticks or tildes.
-_FENCE = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<language>[A-Za-z0-9_-]*)[ \t]*$"
-)
-_CLOSING_FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})[ \t]*$")
+#: CommonMark opens a block with up to three spaces, then three or more
+#: backticks or tildes, then an optional info string.
+_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+#: A block's language tag must be one this loader can name.
+_LANGUAGE = re.compile(r"^[A-Za-z0-9_-]*$")
+#: A closing fence shares the same indentation limit as an opening one.
+_CLOSING_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})[ \t]*$")
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -144,8 +146,36 @@ class _DocumentScan:
             return index + 1
         fence = _FENCE.match(self.lines[index])
         if fence is None:
+            self._require_pending_block()
             return index + 1
-        return self._consume_block(index, fence)
+        language = self._accept_language(fence)
+        return self._consume_block(index, fence, language)
+
+    def _require_pending_block(self) -> None:
+        """Reject a marker whose next line is not its fenced block.
+
+        The style guide places the marker immediately before its fence, so a
+        pending marker that meets prose names no block. Without this, a marker
+        could bind to a fence much later in the document.
+
+        Raises
+        ------
+        ValueError
+            A marker is still pending when the line is neither a marker nor a
+            fence.
+        """
+        if self.pending is not None:
+            message = f"marker {self.pending!r} names no fenced block"
+            raise ValueError(message)
+
+    @staticmethod
+    def _accept_language(fence: re.Match[str]) -> str:
+        """Return the fence's language, rejecting an unsupported info string."""
+        language = fence.group("info").strip()
+        if not _LANGUAGE.fullmatch(language):
+            message = f"unsupported fence info string {language!r}"
+            raise ValueError(message)
+        return language
 
     def _accept_marker(self, name: str) -> None:
         """Record ``name`` as pending, rejecting a marker that displaces one."""
@@ -156,21 +186,44 @@ class _DocumentScan:
             raise ValueError(message)
         self.pending = name
 
-    def _consume_block(self, index: int, fence: re.Match[str]) -> int:
+    def _consume_block(
+        self,
+        index: int,
+        fence: re.Match[str],
+        language: str,
+    ) -> int:
         """Read the block whose opening fence is at ``index`` and store it."""
         if self.pending is None:
             message = f"unmarked fence at line {index + 1} of {self.document}"
             raise ValueError(message)
-        example, next_index = _read_block(self.lines, index, fence, self.pending)
+        opener = _Opener(
+            fence=fence,
+            indent=len(fence.group("indent")),
+            language=language,
+        )
+        example, next_index = _read_block(self.lines, index, opener, self.pending)
         _store_example(self.examples, example)
         self.pending = None
         return next_index
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _Opener:
+    """The fence that opened a block, and the indentation it sets.
+
+    The marker name is not part of this record: a block is read from the
+    document, and the caller already holds the name it will be stored under.
+    """
+
+    fence: re.Match[str]
+    indent: int
+    language: str
+
+
 def _read_block(
     lines: cabc.Sequence[str],
     index: int,
-    fence: re.Match[str],
+    opener: _Opener,
     name: str,
 ) -> tuple[MarkedExample, int]:
     """Read the marked block whose opening fence is at ``index``.
@@ -192,19 +245,19 @@ def _read_block(
     ValueError
         The opening fence is never closed.
     """
-    indent = len(fence.group("indent"))
-    opener = fence.group("fence")
     body: list[str] = []
     cursor = index + 1
-    while cursor < len(lines) and not _closes(lines[cursor], opener):
-        body.append(_strip_indent(lines[cursor], indent))
+    while cursor < len(lines) and not _closes(
+        lines[cursor], opener.fence.group("fence")
+    ):
+        body.append(_strip_indent(lines[cursor], opener.indent))
         cursor += 1
     if cursor == len(lines):
         message = f"marker {name!r} has no closing fence"
         raise ValueError(message)
     example = MarkedExample(
         name=name,
-        language=fence.group("language"),
+        language=opener.language,
         lines=tuple(body),
     )
     return example, cursor + 1
