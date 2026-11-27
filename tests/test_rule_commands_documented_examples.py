@@ -319,3 +319,27 @@ def test_list_like_text_inside_indented_code_is_not_a_list(
     examples = load_tested_examples(path)
 
     assert not examples, "expected the indented code to hold no example"
+
+
+def test_a_whitespace_only_list_item_uses_one_space(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Trailing whitespace on a bare marker does not widen the content column."""
+    path = tmp_path / "guide.md"
+    path.write_text(
+        "-    \n"
+        "\n"
+        "  <!-- tested-example: blank-item -->\n"
+        "  ```python\n"
+        "  value = 1\n"
+        "  ```\n"
+        "\n"
+        "    literal\n",
+        encoding="utf-8",
+    )
+
+    examples = load_tested_examples(path)
+
+    assert examples["blank-item"].lines == ("value = 1",), (
+        "expected a two-space fence under a whitespace-only item to open"
+    )

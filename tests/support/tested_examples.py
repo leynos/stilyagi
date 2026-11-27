@@ -35,9 +35,12 @@ _LANGUAGE = re.compile(r"^[A-Za-z0-9_-]*$")
 #: against the opening fence's container.
 _CLOSING_FENCE = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*$")
 #: A list item, whose content column is the indentation a nested fence uses.
-#: A marker with no content is still an item; `---` and `-foo` are not.
+#: A marker with no content is still an item; `---` and `-foo` are not. The
+#: `content` group is what follows the marker, so a marker-only item can be
+#: told from one whose content starts on the same line.
 _LIST_ITEM = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ \t]+(?=\S)|[ \t]*$)"
+    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])"
+    r"(?:(?P<gap>[ \t]+)(?P<content>.*)|(?P<eol>$))"
 )
 
 
@@ -175,7 +178,10 @@ class _DocumentScan:
             return
         item = _LIST_ITEM.match(line)
         if item is not None:
-            gap = max(len(item.group("gap") or ""), 1)
+            # A marker-only item's content begins one space after it: trailing
+            # whitespace is not content, so a wide gap must not widen the
+            # column a nested fence is measured against.
+            gap = len(item.group("gap")) if item.group("content") else 1
             self.container = len(item.group("indent")) + len(item.group("marker")) + gap
             return
         if not line.startswith((" ", "\t")):
