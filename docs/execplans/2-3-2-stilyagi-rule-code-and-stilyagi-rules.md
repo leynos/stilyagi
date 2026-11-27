@@ -4,15 +4,12 @@ This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
 Status: COMPLETE — feature, documentation, static gates, hosted CI, and the
-default `make test` acceptance record (E6) all pass at `ab4722d2` (2026-11-26).
-E6 was observed at `57b162e7`, after the five formal-review repairs at
-`8bec6f5a`, after the hosted typecheck repair at `9c8da76f`, after the pipeline
-and exit-status repairs at `1cd31061`, at `a600befe` after the shell-runner
-split, at `e5390948` after the config-JSON comparison, at `5840ca5a` after the
-container-relative fence repair, at `5d0df0df` after the Windows launcher
-repair, and at the final code candidate `ab4722d2` after the marker-only
-list-item repair; the last log is
-`/tmp/test-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review13b.out`. The only
+default `make test` acceptance record (E6) all pass at `51b2e58a` (2026-11-27).
+E6 was observed at `57b162e7`, after each successive formal-review repair at
+`8bec6f5a`, `9c8da76f`, `1cd31061`, `a600befe`, `e5390948`, `5840ca5a`,
+`5d0df0df`, and `ab4722d2`, and at the final code candidate `51b2e58a` after
+the marker-only list-item repair; the last log is
+`/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review14.out`. The only
 commit after that code candidate records this evidence and changes no code or
 document the suite reads.
 
@@ -409,6 +406,14 @@ before continuing.
   first attempt timed out on `stilyagi-pyext::compile_tests` at its fixed 1 500
   s budget while the shared queue held 260 requests; the retry in a shallower
   window passed with every budget unchanged.
+- [x] (2026-11-27) The next formal review found that trailing whitespace on a
+  bare list marker widened the content column. `_LIST_ITEM` now captures the
+  content after the gap, and a marker-only item uses one space; the gap is kept
+  when content starts on the same line. A regression loads a two-space block
+  under a whitespace-only marker. **E6 passes at `51b2e58a`**: `make test`
+  exits 0 with 371/371 nextest tests, every Rust doctest, 2 123 pytest tests,
+  and 219 Python doctests with 3 skips; log
+  `/tmp/gates-2-3-2-stilyagi-rule-code-and-stilyagi-rules-review14.out`.
 
 ## Surprises & discoveries
 
