@@ -435,6 +435,18 @@ exits non-zero, the probe logs its captured standard error at `ERROR` level
 before re-raising the failure. Without `--log-level`, no records are emitted
 and the command's normal output is unchanged.
 
+The report helpers carry invariants that fixed inputs do not exercise, so
+`tests/test_structural_performance_probe_properties.py` states them as
+Hypothesis properties: duration summaries stay within their own extremes and
+keep an integer median, repository paths normalize to relative POSIX text or
+raise, and generated reports keep their schema identity while redaction
+replaces only timing and environment values. Shared strategies and the
+temporary-corpus report builder live in
+`tests/support/structural_probe_strategies.py`. Add new strategies to that
+module rather than restating them in the test file, add new properties to
+`tests/test_structural_performance_probe_properties.py`, and keep generated
+fixtures tiny because each example writes its own temporary files.
+
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
 source-backed edits, reject synthetic spans, and reject overlapping source
