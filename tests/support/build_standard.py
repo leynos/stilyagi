@@ -63,6 +63,8 @@ MAKE_OVERRIDES: typ.Final = (
     f"CHECK_BUILD_TOOLS={PROBE_CHECK}",
     f"RESOLVE_VENV_PYTHON=VENV_PYTHON={PROBE_PYTHON}",
     "TY=probe-ty",
+    "--old-file=yamllint",
+    "--old-file=actionlint",
     "MDLINT=probe-mdlint",
     "NIXIE=probe-nixie",
     "MDTABLEFIX=probe-mdtablefix",
