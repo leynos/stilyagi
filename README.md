@@ -122,7 +122,6 @@ time.
 Designed, not yet built:
 
 - The rest of the v1 rule catalogue described on the website.
-- The `rules` and `rule` commands.
 - Grammar and spelling providers behind the capability planner.
 
 The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only

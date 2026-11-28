@@ -1,0 +1,63 @@
+{
+  "rule": {
+    "code": "MD001",
+    "configuration": {
+      "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable MD001` directive instead suppresses reported findings after evaluation, so a suppressed heading remains the depth the next heading compares against.",
+      "options": [],
+      "toml": "[tool.stilyagi.lint]\nselect = [\"MD\"]\n"
+    },
+    "default_severity": "error",
+    "enabled_by_default": true,
+    "examples": [
+      {
+        "configuration": "",
+        "exit_code": 1,
+        "expected_codes": [
+          "MD001"
+        ],
+        "source": "# Start\n### Detail\n",
+        "title": "A skipped level is reported"
+      },
+      {
+        "configuration": "",
+        "exit_code": 0,
+        "expected_codes": [],
+        "source": "# Start\n## Detail\n### Example\n",
+        "title": "Consecutive levels are accepted"
+      }
+    ],
+    "explanation": "The first heading may use any depth. A later heading may descend by any amount but may not increase by more than one level at a time, because a skipped level makes the document outline ambiguous for readers and assistive technology. The diagnostic covers the whole heading node, marker included.",
+    "fix_mode": "manual",
+    "fixable": false,
+    "fixes": "The rule reports a manual suggestion. The correct heading level is a prose decision, so no edit is applied automatically and neither `--fix` nor `--unsafe-fixes` changes the heading.",
+    "limitations": [
+      "Only headings with a locatable node span are reported; a heading the extractor cannot map to source bytes is skipped.",
+      "The rule compares depth only: it does not enforce a document outline or a maximum depth, and a document may begin at any level.",
+      "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+    ],
+    "name": "heading-depth",
+    "pack": "builtin",
+    "preview": false,
+    "references": [
+      "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+      "docs/stilyagi-design.md#72-python-rule-api",
+      "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+    ],
+    "requires": [
+      "STRUCTURE"
+    ],
+    "requires_nlp": false,
+    "summary": "Report heading depth jumps greater than one.",
+    "targets": [
+      {
+        "kinds": [
+          "heading"
+        ],
+        "owner_kinds": [],
+        "scope_has": [],
+        "syntax": "markdown"
+      }
+    ]
+  },
+  "schema_version": 1
+}

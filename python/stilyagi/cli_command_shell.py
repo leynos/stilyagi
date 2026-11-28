@@ -27,6 +27,7 @@ from stilyagi.cli_args import PROGRAM_NAME
 __all__ = [
     "CommandStreams",
     "command_streams",
+    "escape_control_characters",
     "write_command_failure",
 ]
 
@@ -92,6 +93,34 @@ def command_streams[OutputStreamT: typ.TextIO | typ.BinaryIO](
         output=typ.cast("OutputStreamT", sys.stdout) if output is None else output,
         error=sys.stderr if error is None else error,
     )
+
+
+def escape_control_characters(value: str) -> str:
+    r"""Return ``value`` with control characters escaped for one output line.
+
+    A user-supplied identifier can contain a newline, and writing it verbatim
+    would forge a second line on a stream whose contract is one failure per
+    line. Presenting a domain value safely is the command adapter's job, so
+    the domain error keeps the raw value and this function renders it.
+
+    Parameters
+    ----------
+    value:
+        The text to make safe for a single line.
+
+    Returns
+    -------
+    str
+        The text with non-ASCII and control characters escaped.
+
+    Examples
+    --------
+    >>> escape_control_characters("BAD\\nCODE")
+    'BAD\\\\nCODE'
+    >>> escape_control_characters("MD001")
+    'MD001'
+    """
+    return value.encode("unicode_escape").decode("ascii")
 
 
 def write_command_failure(

@@ -1,0 +1,532 @@
+{
+  "rules": [
+    {
+      "code": "DOC001",
+      "configuration": {
+        "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+        "options": [
+          {
+            "constraints": [
+              "Must be a boolean.",
+              "The rule stays inert, reporting nothing, until this is true."
+            ],
+            "default": false,
+            "description": "Whether the rule may report for this configuration.",
+            "name": "enabled",
+            "type": "boolean",
+            "variants": [
+              {
+                "description": "Keep the rule inert even though `DOC` selects it.",
+                "value": false
+              },
+              {
+                "description": "Let the rule report on the regions it claims.",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n"
+      },
+      "default_severity": "warning",
+      "enabled_by_default": false,
+      "examples": [
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "def f() -> None:\n    \"\"\"Do a thing.\n    More detail.\n    \"\"\"\n",
+          "title": "The rule is inert until it is enabled"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [
+            "DOC001"
+          ],
+          "source": "def f() -> None:\n    \"\"\"Do a thing.\n    More detail.\n    \"\"\"\n",
+          "title": "An enabled rule reports the missing separator"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC001]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "def f() -> None:\n    \"\"\"Do a thing.\n\n    More detail.\n    \"\"\"\n",
+          "title": "A blank separator line satisfies the rule"
+        }
+      ],
+      "explanation": "A Python docstring's first content line is its summary. When a further line follows it with no blank line between them, the summary and the explanation run together, which most renderers show as one paragraph. Only Python docstrings are inspected; Rust documentation comments, Markdown, and ordinary comments are not.",
+      "fix_mode": "none",
+      "fixable": false,
+      "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+      "limitations": [
+        "One-line docstrings, docstrings whose summary is the only content, and regions whose source span cannot be located are not reported.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "summary-separation",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE"
+      ],
+      "requires_nlp": false,
+      "summary": "Report a Python docstring summary with no blank separator line.",
+      "targets": [
+        {
+          "kinds": [
+            "python_docstring"
+          ],
+          "owner_kinds": [
+            "class",
+            "function",
+            "module"
+          ],
+          "scope_has": [],
+          "syntax": "python"
+        }
+      ]
+    },
+    {
+      "code": "DOC002",
+      "configuration": {
+        "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+        "options": [
+          {
+            "constraints": [
+              "Must be a boolean.",
+              "The rule stays inert, reporting nothing, until this is true."
+            ],
+            "default": false,
+            "description": "Whether the rule may report for this configuration.",
+            "name": "enabled",
+            "type": "boolean",
+            "variants": [
+              {
+                "description": "Keep the rule inert even though `DOC` selects it.",
+                "value": false
+              },
+              {
+                "description": "Let the rule report on the regions it claims.",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n"
+      },
+      "default_severity": "warning",
+      "enabled_by_default": false,
+      "examples": [
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [
+            "DOC002"
+          ],
+          "source": "def f() -> None:\n    \"\"\"Do a thing\"\"\"\n",
+          "title": "A summary without terminal punctuation is reported"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "def f() -> None:\n    \"\"\"Do a thing.\"\"\"\n",
+          "title": "A summary ending in a full stop is accepted"
+        }
+      ],
+      "explanation": "A documentation summary reads as a complete sentence when it ends in `.`, `!`, or `?`. The rule reports a plain summary that ends in any other character. A summary carrying Markdown markup, or one whose line begins with markup, is skipped because punctuation inside such text is not reliably a sentence boundary.",
+      "fix_mode": "none",
+      "fixable": false,
+      "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+      "limitations": [
+        "Summaries containing or beginning with Markdown markup are not judged, so a genuine missing full stop there goes unreported.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "summary-punctuation",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE"
+      ],
+      "requires_nlp": false,
+      "summary": "Report a documentation summary with no terminal punctuation.",
+      "targets": [
+        {
+          "kinds": [
+            "python_docstring",
+            "rust_doc_comment"
+          ],
+          "owner_kinds": [],
+          "scope_has": [],
+          "syntax": "python,rust"
+        }
+      ]
+    },
+    {
+      "code": "DOC003",
+      "configuration": {
+        "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+        "options": [
+          {
+            "constraints": [
+              "Must be a boolean.",
+              "The rule stays inert, reporting nothing, until this is true."
+            ],
+            "default": false,
+            "description": "Whether the rule may report for this configuration.",
+            "name": "enabled",
+            "type": "boolean",
+            "variants": [
+              {
+                "description": "Keep the rule inert even though `DOC` selects it.",
+                "value": false
+              },
+              {
+                "description": "Let the rule report on the regions it claims.",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n"
+      },
+      "default_severity": "warning",
+      "enabled_by_default": false,
+      "examples": [
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [
+            "DOC003"
+          ],
+          "source": "def load_config() -> None:\n    \"\"\"load_config.\"\"\"\n",
+          "title": "A summary that repeats the owner name is reported"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC003]\nenabled = true\n",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "def load_config() -> None:\n    \"\"\"Load the project configuration.\"\"\"\n",
+          "title": "A summary that describes the owner is accepted"
+        }
+      ],
+      "explanation": "A summary that only restates its owner's name says nothing about what the owner does. The rule reports a summary that is exactly the name, the name with a trailing `()` for a function, or either form followed by one final period. It inspects Python docstrings and Rust documentation comments whose owner is a named class, function, struct, enum, trait, or similar item; an owner the extractor cannot name is skipped.",
+      "fix_mode": "none",
+      "fixable": false,
+      "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+      "limitations": [
+        "Only the exact repetitions described above are reported, so a summary that restates its owner's name in other words is not.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "owner-only-summary",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE"
+      ],
+      "requires_nlp": false,
+      "summary": "Report a documentation summary that only repeats its owner name.",
+      "targets": [
+        {
+          "kinds": [
+            "python_docstring",
+            "rust_doc_comment"
+          ],
+          "owner_kinds": [
+            "class",
+            "const",
+            "enum",
+            "function",
+            "macro",
+            "static",
+            "struct",
+            "trait",
+            "type",
+            "union"
+          ],
+          "scope_has": [],
+          "syntax": "python,rust"
+        }
+      ]
+    },
+    {
+      "code": "MD001",
+      "configuration": {
+        "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable MD001` directive instead suppresses reported findings after evaluation, so a suppressed heading remains the depth the next heading compares against.",
+        "options": [],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"MD\"]\n"
+      },
+      "default_severity": "error",
+      "enabled_by_default": true,
+      "examples": [
+        {
+          "configuration": "",
+          "exit_code": 1,
+          "expected_codes": [
+            "MD001"
+          ],
+          "source": "# Start\n### Detail\n",
+          "title": "A skipped level is reported"
+        },
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "# Start\n## Detail\n### Example\n",
+          "title": "Consecutive levels are accepted"
+        }
+      ],
+      "explanation": "The first heading may use any depth. A later heading may descend by any amount but may not increase by more than one level at a time, because a skipped level makes the document outline ambiguous for readers and assistive technology. The diagnostic covers the whole heading node, marker included.",
+      "fix_mode": "manual",
+      "fixable": false,
+      "fixes": "The rule reports a manual suggestion. The correct heading level is a prose decision, so no edit is applied automatically and neither `--fix` nor `--unsafe-fixes` changes the heading.",
+      "limitations": [
+        "Only headings with a locatable node span are reported; a heading the extractor cannot map to source bytes is skipped.",
+        "The rule compares depth only: it does not enforce a document outline or a maximum depth, and a document may begin at any level.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "heading-depth",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE"
+      ],
+      "requires_nlp": false,
+      "summary": "Report heading depth jumps greater than one.",
+      "targets": [
+        {
+          "kinds": [
+            "heading"
+          ],
+          "owner_kinds": [],
+          "scope_has": [],
+          "syntax": "markdown"
+        }
+      ]
+    },
+    {
+      "code": "STY001",
+      "configuration": {
+        "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable STY001` directive instead suppresses reported findings after evaluation; the rule still evaluates over the document.",
+        "options": [],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"STY\"]\n"
+      },
+      "default_severity": "warning",
+      "enabled_by_default": true,
+      "examples": [
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [
+            "STY001"
+          ],
+          "source": "the the plan is clear.\n",
+          "title": "An adjacent repeat is reported"
+        },
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "The the plan is clear.\n",
+          "title": "Exact spelling is required"
+        },
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "the\nthe\n",
+          "title": "A line break ends the run"
+        }
+      ],
+      "explanation": "Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded.",
+      "fix_mode": "unsafe",
+      "fixable": true,
+      "fixes": "The rule may propose an unsafe edit that removes the repeated suffix. Apply it only with `stilyagi check --fix --unsafe-fixes`; `--fix` alone skips it, and the `lint.fixable` policy still decides whether the code may contribute an edit. Review the diff before applying it, because a deliberate repetition such as `had had` is removed just as an accidental one is.",
+      "limitations": [
+        "Matching is exact and adjacent: `the the` is a run, but `the plan the plan` is not because other words intervene.",
+        "A deliberate repetition is reported the same way as an accidental one, and the unsafe edit cannot tell them apart.",
+        "Only headings, paragraphs, and table cells are inspected; inline code, code blocks, and unsupported regions are not.",
+        "Synthetic segment text that cannot be mapped to source bytes is not editable, so no edit is offered for it.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "repeated-word",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE",
+        "TOKENS"
+      ],
+      "requires_nlp": false,
+      "summary": "Report an immediately repeated word in prose.",
+      "targets": [
+        {
+          "kinds": [
+            "heading",
+            "paragraph",
+            "table_cell"
+          ],
+          "owner_kinds": [],
+          "scope_has": [],
+          "syntax": "markdown"
+        }
+      ]
+    },
+    {
+      "code": "TERM001",
+      "configuration": {
+        "enablement": "Disabled by default. Select `TERM001`, or the `TERM` prefix, and configure `terms` under `[tool.stilyagi.rule.TERM001]`. The builtin plugin gate still applies: `plugins = []` disables all builtin rules, and `lint.ignore`, per-file ignores, and suppression directives still apply. Without a nonempty `terms` list the rule is inactive even when selected.",
+        "options": [
+          {
+            "constraints": [
+              "Must be an array of strings.",
+              "Each entry must be exactly one alphabetic word under `str.isalpha`; spaces, punctuation, numerals, and empty strings are rejected.",
+              "Duplicates coalesce after the configured comparison."
+            ],
+            "default": [],
+            "description": "Words to report when they appear as whole prose tokens.",
+            "name": "terms",
+            "type": "array[string]",
+            "variants": []
+          },
+          {
+            "constraints": [
+              "Must be a boolean."
+            ],
+            "default": false,
+            "description": "Compare configured terms against tokens using exact case instead of Unicode case folding.",
+            "name": "case_sensitive",
+            "type": "boolean",
+            "variants": [
+              {
+                "description": "Use Unicode `casefold()` for the configured term and the candidate token. This is the default.",
+                "value": false
+              },
+              {
+                "description": "Compare the configured spelling exactly. Neither mode promises Unicode normalization or locale-aware matching.",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "toml": "[tool.stilyagi.lint]\nselect = [\"MD\", \"STY\", \"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\ncase_sensitive = false\n"
+      },
+      "default_severity": "error",
+      "enabled_by_default": false,
+      "examples": [
+        {
+          "configuration": "",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "This is obviously fine.\n",
+          "title": "The rule is inactive by default"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"MD\", \"STY\", \"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\ncase_sensitive = false\n",
+          "exit_code": 1,
+          "expected_codes": [
+            "TERM001"
+          ],
+          "source": "This is obviously fine.\n",
+          "title": "A selected and configured term is reported"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+          "exit_code": 1,
+          "expected_codes": [
+            "TERM001"
+          ],
+          "source": "Obviously, this is fine.\n",
+          "title": "Case-insensitive matching folds case"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"Obviously\"]\ncase_sensitive = true\n",
+          "exit_code": 0,
+          "expected_codes": [],
+          "source": "obviously fine.\n",
+          "title": "Case-sensitive matching requires the exact spelling"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+          "exit_code": 1,
+          "expected_codes": [
+            "TERM001"
+          ],
+          "source": "This is obviously-not fine.\n",
+          "title": "Hyphenated text is split into tokens"
+        },
+        {
+          "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"straße\"]\ncase_sensitive = false\n",
+          "exit_code": 1,
+          "expected_codes": [
+            "TERM001"
+          ],
+          "source": "STRASSE matters.\n",
+          "title": "Unicode case folding applies to whole tokens"
+        }
+      ],
+      "explanation": "Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.",
+      "fix_mode": "none",
+      "fixable": false,
+      "fixes": "The rule offers no fix. Choosing a replacement for a banned term is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+      "limitations": [
+        "Only headings, paragraphs, and table cells are inspected; code blocks, inline code, link destinations, and frontmatter are not.",
+        "Matching is whole-token only, but hyphens, punctuation, and digits are token boundaries: a term can match one word inside a hyphenated or punctuated form. Use an exact context check when that is too broad.",
+        "The opposite editorial policy, requiring a term rather than banning it, is not supported; no inverse rule or option exists in this slice.",
+        "Neither case mode promises locale-aware matching or Unicode normalization; use `case_sensitive = true` when exact spelling matters.",
+        "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+      ],
+      "name": "banned-term",
+      "pack": "builtin",
+      "preview": false,
+      "references": [
+        "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+        "docs/stilyagi-design.md#72-python-rule-api",
+        "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+      ],
+      "requires": [
+        "STRUCTURE",
+        "TOKENS"
+      ],
+      "requires_nlp": false,
+      "summary": "Report configured banned terms in prose.",
+      "targets": [
+        {
+          "kinds": [
+            "heading",
+            "paragraph",
+            "table_cell"
+          ],
+          "owner_kinds": [],
+          "scope_has": [],
+          "syntax": "markdown"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

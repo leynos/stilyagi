@@ -36,6 +36,7 @@ directly.
 The mixed-package skeleton already exposes a small, concrete import surface
 that later roadmap slices will extend in place:
 
+<!-- tested-example: import-surface -->
 ```python
 import stilyagi
 from stilyagi import engine, model
@@ -54,6 +55,7 @@ owns a long-lived architectural role:
   rendering, and runner orchestration. It now also exposes the first real
   extraction call:
 
+  <!-- tested-example: engine-extract-markdown -->
   ```python
   from stilyagi import engine, model
 
@@ -62,12 +64,13 @@ owns a long-lived architectural role:
   assert document.regions[0].kind == "heading"
   assert document.regions[0].text == "Heading"
   assert document.ir is not None
-  assert document.ir["schema_version"] == "1.0.0"
+  assert document.ir["schema_version"] == "1.1.0"
   ```
 
   Query the current IR region-kind vocabulary before writing code that branches
   on region kinds:
 
+  <!-- tested-example: supported-region-kinds -->
   ```python
   from stilyagi import engine
 
@@ -89,6 +92,7 @@ owns a long-lived architectural role:
 Users migrating from the provisional repository layout should also note one
 removal:
 
+<!-- tested-example: legacy-smoke-module-removal -->
 ```shell
 python -m stilyagi.smoke
 ```
@@ -99,6 +103,7 @@ from Python, and `1` on any smoke-check failure.
 
 The same check is available as a public Python API:
 
+<!-- tested-example: smoke-check-api -->
 ```python
 from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
@@ -152,6 +157,7 @@ The new extraction path is intentionally narrow in this slice:
 
 A minimal Python docstring extraction example:
 
+<!-- tested-example: docstring-extraction-example -->
 ```python
 from stilyagi import engine, model
 
@@ -187,6 +193,7 @@ assert document.ir["regions"][1]["owner"] == {
 `cli.run_check` is part of the public import surface, and this release adds a
 `collaborators` keyword to it:
 
+<!-- tested-example: run-check-api -->
 ```python
 from stilyagi import cli
 
@@ -199,7 +206,16 @@ bare `*`), and it takes a `cli.CheckCollaborators` bundle so a test can inject
 the pipeline's boundaries — the config resolver, renderer, rule runner, output
 stream, and error reporter — without constructing a command line:
 
+<!-- tested-example: run-check-collaborators -->
 ```python
+from stilyagi import cli
+
+
+def my_rules(_request):
+    """Run no rules; a stand-in for a project's own runner."""
+    return []
+
+
 exit_code = cli.run_check(
     cli.CheckOptions(targets=("docs",)),
     collaborators=cli.CheckCollaborators(rule_runner=my_rules),
@@ -218,6 +234,7 @@ Stilyagi ships a built-in smoke check that confirms the embedded Rust extension
 module is correctly installed and reachable from Python. It is available as a
 CLI entrypoint:
 
+<!-- tested-example: smoke-cli-entrypoint -->
 ```shell
 python -m stilyagi.smoke
 ```
@@ -227,6 +244,7 @@ failure, making it suitable for Makefile targets and CI steps.
 
 The same check is also callable programmatically:
 
+<!-- tested-example: smoke-check-programmatic-api -->
 ```python
 from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
@@ -353,8 +371,10 @@ decided per file, how long a pass took. Progress records go to standard error,
 so `--verbose` never contaminates a pipeline. Each begins with a level, the
 emitting logger, and the message:
 
+<!-- tested-example: verbose-progress-record -->
 ```text
-INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1, operation='collect_checked_files')
+INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1,
+operation='collect_checked_files')
 ```
 
 The parenthesized tail is the record's structured fields. They carry the values
@@ -490,6 +510,7 @@ Each rule is inert until its own table sets `enabled = true`. The default
 `lint.select` already includes the `DOC` prefix, so selection alone cannot
 express opt-in.
 
+<!-- tested-example: doc-rules-enable-toml -->
 ```toml
 [rule.DOC001]
 enabled = true
@@ -536,6 +557,7 @@ Stilyagi discovers those files, or `pyproject.toml`, in the target's directory
 and then its ancestors; inside `pyproject.toml` every table gains a
 `tool.stilyagi` prefix.
 
+<!-- tested-example: standalone-config-toml -->
 ```toml
 # .stilyagi.toml or stilyagi.toml
 [lint]
@@ -550,6 +572,7 @@ terms = ["obviously", "clearly"]
 case_sensitive = false
 ```
 
+<!-- tested-example: pyproject-config-toml -->
 ```toml
 # pyproject.toml
 [tool.stilyagi.lint]
@@ -575,6 +598,7 @@ holding the effective config file, and `*` crosses directory separators.
 
 The whole pack is disabled when `plugins` omits `builtin`:
 
+<!-- tested-example: plugins-empty-toml -->
 ```toml
 plugins = []
 ```
@@ -582,6 +606,7 @@ plugins = []
 Each finding is filtered by its primary span's start byte. The supported
 directives are:
 
+<!-- tested-example: inline-directives-markdown -->
 ```markdown
 <!-- stilyagi: disable STY -->
 <!-- stilyagi: enable STY001 -->
@@ -624,6 +649,7 @@ For JSON output without a key, `values` contains the complete effective
 configuration and `origins` maps each leaf path to its source. For example,
 `stilyagi config lint.select --output-format json` returns this shape:
 
+<!-- tested-example: config-effective-json -->
 ```json
 {
   "key": "lint.select",
@@ -666,6 +692,7 @@ patch instead of changing anything. No source byte on disk is touched. The
 patch uses `a/<path>` and `b/<path>` headers with three lines of context, so it
 is accepted by `git apply`:
 
+<!-- tested-example: diff-patch-to-file -->
 ```shell
 stilyagi check --diff > fixes.patch
 git apply fixes.patch
@@ -675,6 +702,7 @@ Under `--diff`, standard output carries the patch and nothing else. The
 rendered diagnostics and the summary line move to standard error, so a shell
 pipeline can consume the patch directly:
 
+<!-- tested-example: diff-patch-pipe -->
 ```shell
 stilyagi check --diff | git apply
 ```
@@ -704,8 +732,10 @@ byte-empty standard output and may write nothing to standard error. To tell
 them apart, run with `--verbose` and read the `render_diff` record, which is
 emitted once per `--diff` run:
 
+<!-- tested-example: diff-rendered-record -->
 ```text
-INFO stilyagi.cli: diff rendered (elapsed_ms=0, operation='render_diff', patch_byte_count=0, patched_files=0, planned_files=1)
+INFO stilyagi.check_outcome: diff rendered (elapsed_ms=0, operation='render_diff',
+patch_byte_count=0, patched_files=0, planned_files=1)
 ```
 
 | Field              | Meaning                                                     |
@@ -796,6 +826,7 @@ would be harder to audit than a file that was left alone.
 Every refusal is reported and states that the file was not modified. Most also
 name the rule codes responsible:
 
+<!-- tested-example: fix-error-synthetic-span -->
 ```text
 fix-error/synthetic-span: docs/notes.md: PUN201: span is not source-backed;
 file was not modified
@@ -805,6 +836,7 @@ Two identifiers name no rule, because no rule proposed the edit they refuse. A
 stream input and a file that changed on disk are both discovered after the
 rules have run, so their lines carry the reason alone:
 
+<!-- tested-example: fix-error-changed-on-disk -->
 ```text
 fix-error/changed-on-disk: docs/notes.md: the file changed on disk after it was
 planned, so the planned edits were not written; file was not modified; no edits
@@ -843,6 +875,7 @@ names the input for reporting only; it does not identify a file to write. Under
 `--fix`, therefore, a piped document's repaired text is written to standard
 output, and the diagnostics and summary move to standard error:
 
+<!-- tested-example: fix-stdin-rewrite -->
 ```shell
 stilyagi check --fix - --stdin-filename README.md < README.md > fixed.md
 ```
@@ -869,6 +902,7 @@ produces no diagnostic and therefore no edit. A code excluded by
 `lint.unfixable` still produces its diagnostic and still exits `1` — it is
 simply never planned over. A fix setting is not a way to hide a finding:
 
+<!-- tested-example: fixable-unfixable-toml -->
 ```toml
 [lint]
 fixable = ["MD", "PUN"]
@@ -907,6 +941,7 @@ explains it.
 
 Examples:
 
+<!-- tested-example: check-exit-code-invocations -->
 ```shell
 stilyagi check .
 stilyagi check docs/ --output-format json
@@ -922,6 +957,7 @@ stilyagi check --fix - --stdin-filename README.md < README.md
 
 Use `dump-ir` to inspect the canonical JSON produced by the Rust extractor:
 
+<!-- tested-example: dump-ir-invocations -->
 ```shell
 stilyagi dump-ir README.md
 stilyagi dump-ir docs/ --output-format json
@@ -944,6 +980,86 @@ failed cache operation warns with a bounded `storage_<operation>_<category>`
 outcome instead of the underlying system message, so a cache directory path
 never reaches the log. Each cache read, write, and open is timed in the debug
 log under the same bounded operation name.
+
+### Discovering builtin rules with `stilyagi rules`
+
+`stilyagi rules` lists the builtin rule inventory without reading project
+configuration, extracting a document, or running a rule. It works in an empty
+directory and in a repository whose configuration is malformed, which makes it
+useful when a check fails before it can explain itself.
+
+<!-- tested-example: rules-invocations -->
+```shell
+stilyagi rules
+stilyagi rules --output-format json
+stilyagi rules --select TERM
+stilyagi rules --severity warning
+stilyagi rules --preview no --fixable yes
+```
+
+Filters combine with logical AND. `--select` matches a case-sensitive code
+prefix; `--pack` matches an exact pack name; `--severity` accepts `error`,
+`warning`, or `info`; `--preview` and `--fixable` accept `all` (the default),
+`yes`, or `no`. An unknown prefix or pack is an empty result, not an error. A
+repeated single-valued filter uses its last value. The command exits `0` even
+when nothing matches. Text output then prints
+`No builtin rules match the supplied filters.`; JSON output keeps its envelope
+and reports `{"schema_version": 1, "rules": []}`, so a consumer parsing the
+machine-readable form never has to special-case prose.
+
+The list describes the shipped inventory, not the effective configuration of a
+particular file. A listed rule may still be unselected, ignored, suppressed, or
+disabled by the `plugins` gate. `--fixable yes` selects only `STY001`, because
+`MD001` reports a manual suggestion without editing and `TERM001` offers no fix.
+
+#### Inspecting one rule with `stilyagi rule CODE`
+
+`stilyagi rule CODE` prints the complete documentation for one exact,
+case-sensitive code:
+
+<!-- tested-example: rule-invocations -->
+```shell
+stilyagi rule TERM001
+stilyagi rule STY001 --output-format json
+```
+
+The detail states the default severity, pack, default enablement, preview and
+fix status, fix mode, fix guidance, targets, capability requirements,
+configuration guidance with TOML, typed options and their boolean variants,
+executable examples with their expected exit status, limitations, and
+references. An unknown code, a prefix, or a lower-case spelling exits `2` with
+an actionable message on standard error and nothing on standard output, even
+when JSON output was requested.
+
+<!-- tested-example: rule-unknown-code -->
+```shell
+$ stilyagi rule MD
+stilyagi rule: unknown rule code: MD
+$ echo $?
+2
+```
+
+#### Machine-readable catalogue output
+
+Both commands accept `--output-format text|json`. The text list has fixed
+`CODE`, `NAME`, `SEVERITY`, `FIX-MODE`, `DEFAULT`, and `PREVIEW` columns. The
+JSON envelopes are schema version 1: `{"schema_version": 1, "rules": [...]}`
+for a list and `{"schema_version": 1, "rule": {...}}` for a detail. Each
+descriptor carries `code`, `name`, `pack`, `summary`, `explanation`,
+`default_severity`, `targets`, `requires`, `requires_nlp`, `fixable`,
+`fix_mode`, `fixes`, `enabled_by_default`, `preview`, `configuration`,
+`examples`, `limitations`, and `references`. Each target carries `syntax`,
+`kinds`, `scope_has`, and `owner_kinds`; an empty `owner_kinds` places no
+requirement on the region's owner, including a region that records none. Each
+example carries `title`, `source`, `configuration`, `expected_codes`, and the
+documented `exit_code`, which is always the integer `0` or `1`. Empty
+collections are arrays; booleans are JSON booleans. Errors always use standard
+error as text, so a consumer can treat standard output as the machine-readable
+result alone.
+
+Fixability describes a capability, not a guarantee. `STY001` can propose an
+unsafe edit, which `--fix` applies only with `--unsafe-fixes`; `MD001` reports
+manual guidance and never edits; `TERM001` offers no fix at all.
 
 ## 4. Locale policy in v1
 
@@ -974,12 +1090,13 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The `check`, `config`, `dump-ir`, and `clean` commands are available. Markdown
-extraction caching reuses only canonical IR; each run still evaluates its
-current rules and fix plan. `--no-cache` bypasses persistent cache access, and
-`clean` removes only recognized Stilyagi cache data beneath the working
-directory. Treat this guide as a record of the settled user-facing v1 contract
-rather than as a complete operating manual.
+The `check`, `config`, `dump-ir`, `clean`, `rule`, and `rules` commands are
+available. Markdown extraction caching reuses only canonical IR; each run still
+evaluates its current rules and fix plan. `--no-cache` bypasses persistent
+cache access, and `clean` removes only recognized Stilyagi cache data beneath
+the working directory. The `rule` and `rules` commands read the static builtin
+catalogue and never load project configuration. Treat this guide as a record of
+the settled user-facing v1 contract rather than as a complete operating manual.
 
 Readers moving from v0.1.0 to v0.2.0 should follow the
 [v0.2.0 migration guide](v0-2-0-migration-guide.md), which sets out what must

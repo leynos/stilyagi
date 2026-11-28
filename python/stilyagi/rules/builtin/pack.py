@@ -22,6 +22,7 @@ from stilyagi.engine import ir_view, rule_view
 from stilyagi.rules.base import RegionTarget, RuleContext, RuleMetadata
 from stilyagi.rules.builtin import (
     banned_term,
+    descriptions,
     documentation,
     heading_depth,
     repeated_word,
@@ -76,10 +77,15 @@ _DOC002_TARGET = RegionTarget(
     kinds=("python_docstring", "rust_doc_comment"),
     syntaxes=("python", "rust"),
 )
+#: Both language lists name ``function``; a target is a set, so the published
+#: constraint lists it once, in the order the two lists declare it.
+_DOC003_OWNER_KINDS: tuple[str, ...] = tuple(
+    dict.fromkeys(_PYTHON_NAMED_OWNERS + _RUST_NAMED_OWNERS)
+)
 _DOC003_TARGET = RegionTarget(
     kinds=("python_docstring", "rust_doc_comment"),
     syntaxes=("python", "rust"),
-    owner_kinds=_PYTHON_NAMED_OWNERS + _RUST_NAMED_OWNERS,
+    owner_kinds=_DOC003_OWNER_KINDS,
 )
 
 
@@ -113,6 +119,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="heading-depth",
             target=RegionTarget(kinds=("heading",)),
             default_severity="error",
+            description=descriptions.MD001_DESCRIPTION,
         ),
         parser=functools.partial(
             rule_options.parse_optionless, config_type=rule_options.Md001Config
@@ -125,6 +132,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="repeated-word",
             target=_TEXT_TARGET,
             default_severity="warning",
+            description=descriptions.STY001_DESCRIPTION,
         ),
         parser=functools.partial(
             rule_options.parse_optionless, config_type=rule_options.Sty001Config
@@ -138,6 +146,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="banned-term",
             target=_TEXT_TARGET,
             default_severity="error",
+            description=descriptions.TERM001_DESCRIPTION,
         ),
         parser=rule_options.parse_term001,
         hook=banned_term.check_banned_term,
@@ -149,6 +158,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="summary-separation",
             target=_DOC001_TARGET,
             default_severity="warning",
+            description=descriptions.DOC001_DESCRIPTION,
         ),
         parser=rule_options.parse_documentation,
         hook=documentation.check_summary_separation,
@@ -159,6 +169,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="summary-punctuation",
             target=_DOC002_TARGET,
             default_severity="warning",
+            description=descriptions.DOC002_DESCRIPTION,
         ),
         parser=rule_options.parse_documentation,
         hook=documentation.check_summary_punctuation,
@@ -169,6 +180,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="owner-only-summary",
             target=_DOC003_TARGET,
             default_severity="warning",
+            description=descriptions.DOC003_DESCRIPTION,
         ),
         parser=rule_options.parse_documentation,
         hook=documentation.check_owner_summary,
@@ -179,17 +191,33 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
 def inventory() -> tuple[RuleMetadata, ...]:
     """Return the builtin rule metadata in deterministic order.
 
+    The catalogue's exact-code lookup promises one descriptor per code, so
+    uniqueness is checked here rather than assumed. A duplicated declaration
+    would otherwise make `get_rule` return an arbitrary member of the pair
+    while its docstring still claimed a single rule.
+
     Returns
     -------
     tuple[RuleMetadata, ...]
         Builtin metadata, ordered by code prefix then code.
+
+    Raises
+    ------
+    ValueError
+        Two builtin rules declare the same code.
 
     Examples
     --------
     >>> [metadata.code for metadata in inventory()]
     ['MD001', 'STY001', 'TERM001', 'DOC001', 'DOC002', 'DOC003']
     """
-    return tuple(rule.metadata for rule in _BUILTIN_RULES)
+    metadata = tuple(rule.metadata for rule in _BUILTIN_RULES)
+    codes = [item.code for item in metadata]
+    if len(codes) != len(set(codes)):
+        duplicate = next(code for code in codes if codes.count(code) > 1)
+        message = f"duplicate builtin rule code: {duplicate}"
+        raise ValueError(message)
+    return metadata
 
 
 def enabled_codes() -> tuple[str, ...]:

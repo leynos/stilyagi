@@ -1,0 +1,84 @@
+{
+  "rule": {
+    "code": "DOC002",
+    "configuration": {
+      "enablement": "The `DOC` prefix is part of the default selection, so selection alone cannot express opt-in: each documentation rule stays inert until `enabled = true` is set under `[tool.stilyagi.rule.CODE]`. `lint.ignore`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs; a `stilyagi: disable` directive instead suppresses reported findings after evaluation.",
+      "options": [
+        {
+          "constraints": [
+            "Must be a boolean.",
+            "The rule stays inert, reporting nothing, until this is true."
+          ],
+          "default": false,
+          "description": "Whether the rule may report for this configuration.",
+          "name": "enabled",
+          "type": "boolean",
+          "variants": [
+            {
+              "description": "Keep the rule inert even though `DOC` selects it.",
+              "value": false
+            },
+            {
+              "description": "Let the rule report on the regions it claims.",
+              "value": true
+            }
+          ]
+        }
+      ],
+      "toml": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n"
+    },
+    "default_severity": "warning",
+    "enabled_by_default": false,
+    "examples": [
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [
+          "DOC002"
+        ],
+        "source": "def f() -> None:\n    \"\"\"Do a thing\"\"\"\n",
+        "title": "A summary without terminal punctuation is reported"
+      },
+      {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"DOC\"]\n\n[tool.stilyagi.rule.DOC002]\nenabled = true\n",
+        "exit_code": 0,
+        "expected_codes": [],
+        "source": "def f() -> None:\n    \"\"\"Do a thing.\"\"\"\n",
+        "title": "A summary ending in a full stop is accepted"
+      }
+    ],
+    "explanation": "A documentation summary reads as a complete sentence when it ends in `.`, `!`, or `?`. The rule reports a plain summary that ends in any other character. A summary carrying Markdown markup, or one whose line begins with markup, is skipped because punctuation inside such text is not reliably a sentence boundary.",
+    "fix_mode": "none",
+    "fixable": false,
+    "fixes": "The rule offers no fix. Rewriting a summary is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
+    "limitations": [
+      "Summaries containing or beginning with Markdown markup are not judged, so a genuine missing full stop there goes unreported.",
+      "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."
+    ],
+    "name": "summary-punctuation",
+    "pack": "builtin",
+    "preview": false,
+    "references": [
+      "docs/rfcs/rfc-0002-stilyagi-python-rule-api.md",
+      "docs/stilyagi-design.md#72-python-rule-api",
+      "docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md"
+    ],
+    "requires": [
+      "STRUCTURE"
+    ],
+    "requires_nlp": false,
+    "summary": "Report a documentation summary with no terminal punctuation.",
+    "targets": [
+      {
+        "kinds": [
+          "python_docstring",
+          "rust_doc_comment"
+        ],
+        "owner_kinds": [],
+        "scope_has": [],
+        "syntax": "python,rust"
+      }
+    ]
+  },
+  "schema_version": 1
+}

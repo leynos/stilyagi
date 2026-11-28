@@ -3,11 +3,11 @@
 ## Who should read this
 
 Read this if you run `stilyagi check`, keep a `stilyagi.toml`, or have a
-Markdown-heavy repository. v0.2.0 adds three commands, turns Markdown
-extraction caching on by default, claims `.mdc` files during discovery, refuses
-a planned fix that would disturb YAML frontmatter, and ships three opt-in
-builtin documentation rules for Python docstrings and Rust documentation
-comments.
+Markdown-heavy repository. v0.2.0 adds five commands (`config`, `dump-ir`,
+`clean`, `rule`, and `rules`), turns Markdown extraction caching on by default,
+claims `.mdc` files during discovery, refuses a planned fix that would disturb
+YAML frontmatter, and ships three opt-in builtin documentation rules for Python
+docstrings and Rust documentation comments.
 
 Nothing here removes an existing command or option. Every change is either an
 addition you can ignore or a new default you can turn off. The one behaviour a
@@ -16,14 +16,15 @@ tree without being asked for.
 
 ## Impact at a glance
 
-| Priority           | Area            | What to do                                                                                                      |
-| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
-| Required           | Cache directory | Add `.stilyagi_cache` to your version-control ignore file, or set `cache-dir` to a path you already ignore.     |
-| Required if called | Discovery       | Confirm that claiming `.mdc` files in `check` and `dump-ir` does not lint files you meant to exclude.           |
-| Review if enabled  | Fix planning    | Re-read your frontmatter expectations: a fix that cannot be shown to preserve those bytes is now refused whole. |
-| Recommended        | Command surface | Use `stilyagi config` and `stilyagi dump-ir` when you need to inspect effective configuration or canonical IR.  |
-| Optional           | Cache           | Pass `--no-cache` if you want fresh extraction for a run, or run `stilyagi clean` to remove cache data.         |
-| Review if enabled  | Documentation   | Opt in to `DOC001`-`DOC003` per rule; a malformed `enabled` value now exits 2 even when the rule is ignored.    |
+| Priority           | Area            | What to do                                                                                                            |
+| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Required           | Cache directory | Add `.stilyagi_cache` to your version-control ignore file, or set `cache-dir` to a path you already ignore.           |
+| Required if called | Discovery       | Confirm that claiming `.mdc` files in `check` and `dump-ir` does not lint files you meant to exclude.                 |
+| Review if enabled  | Fix planning    | Re-read your frontmatter expectations: a fix that cannot be shown to preserve those bytes is now refused whole.       |
+| Recommended        | Command surface | Use `stilyagi config` and `stilyagi dump-ir` when you need to inspect effective configuration or canonical IR.        |
+| Recommended        | Rule discovery  | Use `stilyagi rules` and `stilyagi rule CODE` to inspect the builtin catalogue without loading project configuration. |
+| Review if enabled  | Documentation   | Opt in to `DOC001`-`DOC003` per rule; a malformed `enabled` value now exits 2 even when the rule is ignored.          |
+| Optional           | Cache           | Pass `--no-cache` if you want fresh extraction for a run, or run `stilyagi clean` to remove cache data.               |
 
 _Table 1: Obligations when moving from v0.1.0 to v0.2.0._
 
@@ -101,7 +102,29 @@ be shown to preserve the frontmatter, that file is refused whole: no edits and
 no replacement bytes are produced, so an otherwise valid body fix in the same
 file does not apply either. Fix the frontmatter conflict, then re-run.
 
-## 4. Opt in to the builtin documentation rules
+## 4. Discover the shipped rules
+
+Two read-only commands expose the builtin catalogue without loading project
+configuration:
+
+```shell
+stilyagi rules
+stilyagi rule TERM001
+```
+
+`rules` lists the shipped rules and accepts prefix, pack, severity, preview,
+and fixability filters. A filter that matches nothing succeeds: text output
+prints `No builtin rules match the supplied filters.`, while JSON output
+carries the usual envelope with an empty `rules` array. `rule CODE` prints one
+rule's policy, typed options, examples, limitations, and references; an
+unknown, lower-case, or prefix code exits `2` with an actionable message on
+standard error. Both accept `--output-format json`. The catalogue describes the
+shipped inventory, not the effective configuration of a particular project or
+file. See the
+[user's guide](users-guide.md#discovering-builtin-rules-with-stilyagi-rules)
+for the output contract and examples.
+
+## 5. Opt in to the builtin documentation rules
 
 v0.2.0 adds `DOC001` (summary separation), `DOC002` (summary punctuation), and
 `DOC003` (owner-only summary) for Python docstrings and Rust documentation
@@ -118,14 +141,17 @@ No existing output changes if you leave them unconfigured. Two details are
 worth checking in an existing configuration: a `[rule.DOCnnn]` table that sets
 `enabled` to a non-boolean now fails with exit code `2` even when the rule is
 ignored or unselected, and the `enabled` key is the only option these rules
-accept. See the [users' guide](users-guide.md#builtin-documentation-rules) for
-the supported surfaces and the conservative exclusions.
+accept. `stilyagi rule DOC001` prints the same opt-in requirement alongside the
+rule's policy, and `stilyagi rules` lists the three documentation rules with
+their default severity. See the
+[users' guide](users-guide.md#builtin-documentation-rules) for the supported
+surfaces and the conservative exclusions.
 
 ## What does not need to change
 
 - Existing `stilyagi check` invocations, their arguments, and their exit codes.
-  The exit-code contract is unchanged: `0` for a clean run, `1` when
-  diagnostics exist, `2` for an operational error.
+  The exit-code contract is unchanged: `0` for a clean or warning-only run, `1`
+  when error-severity diagnostics exist, `2` for an operational error.
 - Existing `stilyagi.toml` files. This release adds no required key and
   renames none.
 - Rules, rule selection, and suppression directives. A cache hit reuses only

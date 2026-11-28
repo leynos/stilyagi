@@ -4,7 +4,9 @@ The check command discovers registered source files, reads each input,
 extracts documents through the Rust bridge, and renders the accumulated
 diagnostics with an honest run summary. The config command inspects effective
 values and their source origins without linting files.
-The dump-ir command emits the canonical Rust JSON for Markdown inputs.
+The dump-ir command emits the canonical Rust JSON for Markdown inputs. The
+rule and rules commands answer from the static builtin catalogue and never
+read project configuration or a document.
 
 The command is an orchestration layer and nothing more. Target resolution,
 per-file checking, aggregation, fix execution, rendering and the exit policy
@@ -51,10 +53,13 @@ from stilyagi.cli_config_command import _run_config_inspection
 from stilyagi.cli_dump_ir import run_dump_ir
 from stilyagi.cli_extraction_cache import cache_policy_for, open_extraction_cache
 from stilyagi.cli_io import report_check_error
+from stilyagi.cli_rule_args import rule_options_from_args, rules_options_from_args
 from stilyagi.cli_run import collect_checked_files
+from stilyagi.rule_commands import run_rule_detail, run_rule_list
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
+    import argparse
     import collections.abc as cabc
     import pathlib
 
@@ -153,6 +158,22 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     except SystemExit as exc:
         return typ.cast("int", exc.code)
 
+    return _dispatch_command(args)
+
+
+def _dispatch_command(args: argparse.Namespace) -> int:
+    """Dispatch one parsed command to its adapter.
+
+    Check is the fallthrough so an unknown or absent subcommand keeps the
+    historical behaviour of checking the current directory. Each other branch
+    names its command explicitly rather than deriving a handler by reflection,
+    so the parser, the dispatch, and the documented surface are read together.
+
+    Returns
+    -------
+    int
+        The command's exit status.
+    """
     if args.command == "config":
         config_options = _config_inspection_options_from_args(args)
         return _run_config_inspection(config_options)
@@ -160,6 +181,10 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         return run_dump_ir(dump_ir_options_from_args(args))
     if args.command == "clean":
         return run_clean()
+    if args.command == "rule":
+        return run_rule_detail(rule_options_from_args(args))
+    if args.command == "rules":
+        return run_rule_list(rules_options_from_args(args))
 
     options = options_from_args(args)
     return run_check(options)
