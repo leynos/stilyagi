@@ -61,6 +61,8 @@ def test_makefile_targets_build_ruff_commands_from_the_version_pin(
                 f"MDTABLEFIX={shim_dir / 'mdtablefix'}",
                 f"MDLINT={shim_dir / 'markdownlint-cli2'}",
                 f"RUFF_VERSION={SENTINEL_RUFF_VERSION}",
+                "--old-file=yamllint",
+                "--old-file=actionlint",
                 target,
             ],
             stdin="",

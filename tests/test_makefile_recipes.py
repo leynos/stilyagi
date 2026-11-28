@@ -150,7 +150,13 @@ def test_lint_composes_the_two_stages_and_whitaker_requires_clippy(
 ) -> None:
     """The prerequisite, not the recipe line order, sequences Whitaker."""
     lint_header, lint_recipe = _make_target(makefile_text, "lint")
-    assert _prerequisites(lint_header) == ("lint-clippy", "lint-whitaker"), lint_header
+    # The YAML lint targets may sit beside the two stages; their order is the contract.
+    stages = tuple(
+        name
+        for name in _prerequisites(lint_header)
+        if name in {"lint-clippy", "lint-whitaker"}
+    )
+    assert stages == ("lint-clippy", "lint-whitaker"), lint_header
     assert not lint_recipe, "expected lint to hold no recipe of its own"
 
     whitaker_header, _ = _make_target(makefile_text, "lint-whitaker")
@@ -199,6 +205,8 @@ def test_lint_recipe_executes_df12_tools_before_rust_checks(
                 f"UV={shim_dir / 'uv'}",
                 f"CARGO={shim_dir / 'cargo'}",
                 f"WHITAKER={shim_dir / 'whitaker'}",
+                "--old-file=yamllint",
+                "--old-file=actionlint",
                 "lint",
             ],
             stdin="",
